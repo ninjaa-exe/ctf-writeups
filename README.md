@@ -50,7 +50,7 @@ Total Machines Completed: **1**
 | ------- | ---------- | ----- | ---------------------------------- |
 | Cap     | Easy       | Linux | [View Write-up](htb/cap/README.md) |
 | Chemistry     | Easy       | Linux | [View Write-up](htb/chemistry/README.md) |
-| Underpass     | Easy       | Linux   | ✅ Completed   | [View](htb/underpass/README.md) |
+| Underpass     | Easy       | Linux | [View Write-up](htb/underpass/README.md) |
 
 ---
 
