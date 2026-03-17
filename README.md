@@ -18,6 +18,30 @@ These write-ups focus on:
 
 ---
 
+# Progress Tracker
+
+This section tracks my progress solving **Hack The Box machines**.
+
+| Machine | Difficulty | OS      | Status        | Write-up                  |
+| ------- | ---------- | ------- | ------------- | ------------------------- |
+| Cap     | Easy       | Linux   | ✅ Completed   | [View](htb/cap/README.md) |
+| Lame    | Easy       | Linux   | ⬜ Not Started | -                         |
+| Jerry   | Easy       | Windows | ⬜ Not Started | -                         |
+
+---
+
+### Progress Summary
+
+| Difficulty | Completed |
+| ---------- | --------- |
+| Easy       | 1         |
+| Medium     | 0         |
+| Hard       | 0         |
+| Insane     | 0         |
+
+Total Machines Completed: **1**
+
+
 # Hack The Box Machines
 
 | Machine | Difficulty | OS    | Write-up                           |
