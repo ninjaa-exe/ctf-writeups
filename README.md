@@ -25,6 +25,7 @@ This section tracks my progress solving **Hack The Box machines**.
 | Machine | Difficulty | OS      | Status        | Write-up                  |
 | ------- | ---------- | ------- | ------------- | ------------------------- |
 | Cap     | Easy       | Linux   | ✅ Completed   | [View](htb/cap/README.md) |
+| Chemistry     | Easy       | Linux   | ✅ Completed   | [View](htb/chemistry/README.md) |
 | Lame    | Easy       | Linux   | ⬜ Not Started | -                         |
 | Jerry   | Easy       | Windows | ⬜ Not Started | -                         |
 
@@ -34,7 +35,7 @@ This section tracks my progress solving **Hack The Box machines**.
 
 | Difficulty | Completed |
 | ---------- | --------- |
-| Easy       | 1         |
+| Easy       | 2         |
 | Medium     | 0         |
 | Hard       | 0         |
 | Insane     | 0         |
@@ -47,6 +48,7 @@ Total Machines Completed: **1**
 | Machine | Difficulty | OS    | Write-up                           |
 | ------- | ---------- | ----- | ---------------------------------- |
 | Cap     | Easy       | Linux | [View Write-up](htb/cap/README.md) |
+| Chemistry     | Easy       | Linux | [View Write-up](htb/chemistry/README.md) |
 
 ---
 
