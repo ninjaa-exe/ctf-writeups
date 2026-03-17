@@ -25,12 +25,6 @@ More platforms will be added in the future.
 ---
 
 # Repository Structure
-ctf-writeups
-│
-├─ htb
-│ └─ machine-name
-│ ├─ README.md
-│ └─ screenshots
 
 Each machine folder contains:
 
