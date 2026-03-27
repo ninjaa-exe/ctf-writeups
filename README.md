@@ -81,8 +81,17 @@ ctf-writeups
 ├── htb
 │   │
 │   └── cap
-│       ├── README.md
-│       └── screenshots
+│   │  ├── README.md
+│   │   └── screenshots
+│   └── chemistry
+│   │   ├── README.md
+│   │   └── screenshots
+│   └── underpass
+│   │  ├── README.md
+│   │   └── screenshots
+│   └── facts
+│   │  ├── README.md
+│   │   └── screenshots
 ```
 
 Each machine folder contains:
