@@ -25,10 +25,12 @@ This section tracks my progress solving **Hack The Box machines**.
 | Machine | Difficulty | OS      | Status        | Write-up                  |
 | ------- | ---------- | ------- | ------------- | ------------------------- |
 | Cap     | Easy       | Linux   | ✅ Completed   | [View](htb/cap/README.md) |
+| CCTV    | Easy       | Linux   | ✅ Completed |  [View](htb/cctv/README.md)  |
 | Chemistry     | Easy       | Linux   | ✅ Completed   | [View](htb/chemistry/README.md) |
-| Underpass     | Easy       | Linux   | ✅ Completed   | [View](htb/underpass/README.md) |
+| Conversor    | Easy       | Linux   | ✅ Completed |  [View](htb/conversor/README.md)  |
 | Facts    | Easy       | Linux   | ✅ Completed |  [View](htb/facts/README.md)  |
-| Jerry   | Easy       | Windows | ⬜ Not Started | -                         |
+| Kobold    | Easy       | Linux   | ✅ Completed |  [View](htb/kobold/README.md)  |
+| Underpass     | Easy       | Linux   | ✅ Completed   | [View](htb/underpass/README.md) |
 
 ---
 
@@ -36,7 +38,7 @@ This section tracks my progress solving **Hack The Box machines**.
 
 | Difficulty | Completed |
 | ---------- | --------- |
-| Easy       | 4         |
+| Easy       | 7         |
 | Medium     | 0         |
 | Hard       | 0         |
 | Insane     | 0         |
@@ -49,9 +51,12 @@ Total Machines Completed: **1**
 | Machine | Difficulty | OS    | Write-up                           |
 | ------- | ---------- | ----- | ---------------------------------- |
 | Cap     | Easy       | Linux | [View Write-up](htb/cap/README.md) |
+| CCTV     | Easy       | Linux | [View Write-up](htb/cctv/README.md) |
 | Chemistry     | Easy       | Linux | [View Write-up](htb/chemistry/README.md) |
-| Underpass     | Easy       | Linux | [View Write-up](htb/underpass/README.md) |
+| Conversor     | Easy       | Linux | [View Write-up](htb/conversor/README.md) |
 | Facts     | Easy       | Linux | [View Write-up](htb/facts/README.md) |
+| Kobold     | Easy       | Linux | [View Write-up](htb/kobold/README.md) |
+| Underpass     | Easy       | Linux | [View Write-up](htb/underpass/README.md) |
 
 ---
 
@@ -83,13 +88,22 @@ ctf-writeups
 │   └── cap
 │   │  ├── README.md
 │   │   └── screenshots
+│   └── cctv
+│   │  ├── README.md
+│   │   └── screenshots
 │   └── chemistry
 │   │   ├── README.md
 │   │   └── screenshots
-│   └── underpass
-│   │  ├── README.md
+│   └── conversor
+│   │   ├── README.md
 │   │   └── screenshots
 │   └── facts
+│   │   ├── README.md
+│   │   └── screenshots
+│   └── kobold
+│   │   ├── README.md
+│   │   └── screenshots
+│   └── underpass
 │   │  ├── README.md
 │   │   └── screenshots
 ```
