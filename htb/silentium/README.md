@@ -46,7 +46,7 @@ A enumeração inicial foi feita com Nmap para entender rapidamente quais servi�
 nmap -sC -sV -A -T4 10.129.27.123
 ```
 
-![Nmap](./nmap.png)
+![Nmap](screenshots/nmap.png)
 
 ## Análise
 
@@ -71,7 +71,7 @@ Esse pequeno detalhe já orienta a enumeração seguinte.
 
 Após configurar o host localmente, a aplicação principal apresentou uma página institucional.
 
-![Página principal](./web.png)
+![Página principal](screenshots/web.png)
 
 ## Análise
 
@@ -102,7 +102,7 @@ ffuf -u http://silentium.htb/ \
 -fs 8753 -mc 200
 ```
 
-![Subdomain fuzzing](./subdomain-fuzz.png)
+![Subdomain fuzzing](screenshots/subdomain-fuzz.png)
 
 ## Análise
 
@@ -131,7 +131,7 @@ Ou seja: encontrar `staging` não é só mais um host. É um forte indício de q
 
 No ambiente de staging foi possível identificar uma interface de autenticação.
 
-![Login](./login.png)
+![Login](screenshots/login.png)
 
 ## Análise
 
@@ -169,7 +169,7 @@ curl -s -X POST http://staging.silentium.htb/api/v1/account/forgot-password \
 -d '{"user":{"email":"ben@silentium.htb"}}'
 ```
 
-![Forgot password](./password-reset.png)
+![Forgot password](screenshots/password-reset.png)
 
 ## Análise
 
@@ -215,7 +215,7 @@ curl -i -X POST http://staging.silentium.htb/api/v1/account/reset-password \
 }'
 ```
 
-![Password reset](./password.png)
+![Password reset](screenshots/password.png)
 
 ## Análise
 
@@ -241,7 +241,7 @@ Depois de redefinir a senha da conta `ben`, o acesso pôde ser testado via SSH.
 ssh ben@10.129.23.208
 ```
 
-![SSH inicial](./ssh.png)
+![SSH inicial](screenshots/ssh.png)
 
 ## Análise
 
@@ -264,7 +264,11 @@ Com acesso ao sistema como `ben`, foi possível ler a flag de usuário.
 cat user.txt
 ```
 
-![User flag](./user-flag.png)
+![User flag](screenshots/user-flag.png)
+
+```
+e6dca8e69b324f1a217f4e796d1ff922 
+```
 
 ---
 
@@ -284,7 +288,7 @@ Um ponto de enumeração que se mostrou extremamente valioso foi verificar o amb
 cat /proc/1/environ
 ```
 
-![Variáveis de ambiente](./port-forward.png)
+![Variáveis de ambiente](screenshots/port-forward.png)
 
 ## Análise
 
@@ -316,11 +320,11 @@ Com a suspeita de um serviço local, o próximo passo foi criar um túnel para a
 ssh -L 3001:127.0.0.1:3001 ben@10.129.25.77
 ```
 
-![Port forwarding SSH](./ssh-3001.png)
+![Port forwarding SSH](screenshots/ssh-3001.png)
 
 Também foi possível validar o conceito visualmente com o redirecionamento para o serviço interno:
 
-![Port forward em uso](./docker.png)
+![Port forward em uso](screenshots/docker.png)
 
 ## Análise
 
@@ -339,7 +343,7 @@ Esse tipo de pivot é essencial porque muitos serviços administrativos, painéi
 
 Após o port forwarding, o serviço acessível na porta 3001 revelou uma instância **Gogs**.
 
-![Gogs](./docker.png)
+![Gogs](screenshots/docker.png)
 
 ## Análise
 
@@ -376,7 +380,7 @@ A exploração utilizada foi uma cadeia baseada em **symlink hook injection** no
 
 O resultado prático do exploit foi a criação/acionamento de um repositório malicioso para disparar o payload e escalar privilégios.
 
-![Exploração no Gogs](./privilege-escalation.png)
+![Exploração no Gogs](screenshots/privilege-escalation.png)
 
 ## Análise
 
@@ -422,7 +426,11 @@ Esse é o ponto em que a cadeia de exploração se fecha: da falha lógica web a
 cat /root/root.txt
 ```
 
-![Root flag](./root-flag.png)
+![Root flag](screenshots/root-flag.png)
+
+```
+f08e07e784230fd8108e8ebcf1a9e861
+```
 
 ---
 
