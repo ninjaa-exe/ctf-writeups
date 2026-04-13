@@ -30,7 +30,11 @@ This section tracks my progress solving **Hack The Box machines**.
 | Conversor    | Easy       | Linux   | ✅ Completed |  [View](htb/conversor/README.md)  |
 | Facts    | Easy       | Linux   | ✅ Completed |  [View](htb/facts/README.md)  |
 | Kobold    | Easy       | Linux   | ✅ Completed |  [View](htb/kobold/README.md)  |
+| Silentium    | Easy       | Linux   | ✅ Completed |  [View](htb/silentium/README.md)  |
+| TwoMillion    | Easy       | Linux   | ✅ Completed |  [View](htb/twomillion/README.md)  |
 | Underpass     | Easy       | Linux   | ✅ Completed   | [View](htb/underpass/README.md) |
+| Wingdata     | Easy       | Linux   | ✅ Completed   | [View](htb/wingdata/README.md) |
+
 
 ---
 
@@ -38,27 +42,12 @@ This section tracks my progress solving **Hack The Box machines**.
 
 | Difficulty | Completed |
 | ---------- | --------- |
-| Easy       | 7         |
+| Easy       | 10         |
 | Medium     | 0         |
 | Hard       | 0         |
 | Insane     | 0         |
 
-Total Machines Completed: **1**
-
-
-# Hack The Box Machines
-
-| Machine | Difficulty | OS    | Write-up                           |
-| ------- | ---------- | ----- | ---------------------------------- |
-| Cap     | Easy       | Linux | [View Write-up](htb/cap/README.md) |
-| CCTV     | Easy       | Linux | [View Write-up](htb/cctv/README.md) |
-| Chemistry     | Easy       | Linux | [View Write-up](htb/chemistry/README.md) |
-| Conversor     | Easy       | Linux | [View Write-up](htb/conversor/README.md) |
-| Facts     | Easy       | Linux | [View Write-up](htb/facts/README.md) |
-| Kobold     | Easy       | Linux | [View Write-up](htb/kobold/README.md) |
-| Underpass     | Easy       | Linux | [View Write-up](htb/underpass/README.md) |
-
----
+Total Machines Completed: **10**
 
 # Platforms
 
@@ -76,54 +65,12 @@ Possible additions:
 
 ---
 
-# Repository Structure
-
-```
-ctf-writeups
-│
-├── README.md
-│
-├── htb
-│   │
-│   └── cap
-│   │  ├── README.md
-│   │   └── screenshots
-│   └── cctv
-│   │  ├── README.md
-│   │   └── screenshots
-│   └── chemistry
-│   │   ├── README.md
-│   │   └── screenshots
-│   └── conversor
-│   │   ├── README.md
-│   │   └── screenshots
-│   └── facts
-│   │   ├── README.md
-│   │   └── screenshots
-│   └── kobold
-│   │   ├── README.md
-│   │   └── screenshots
-│   └── underpass
-│   │  ├── README.md
-│   │   └── screenshots
-```
-
-Each machine folder contains:
-
-* Detailed **step-by-step write-up**
-* **Commands used during exploitation**
-* **Screenshots of key steps**
-* **Attack path explanation**
-
----
-
 # Tools Frequently Used
 
 Some tools commonly used in these write-ups include:
 
 * Nmap
 * Gobuster / FFUF
-* Wireshark
 * LinPEAS
 * SSH
 * Netcat
