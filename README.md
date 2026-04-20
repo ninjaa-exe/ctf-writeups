@@ -54,12 +54,12 @@ Total Machines Completed: **11**
 Currently included platforms:
 
 * Hack The Box
+* TryHackMe
 
 More platforms will be added in the future.
 
 Possible additions:
 
-* TryHackMe
 * PortSwigger Labs
 * CTF competitions
 
