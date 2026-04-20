@@ -4,7 +4,7 @@
 ![Focus](https://img.shields.io/badge/focus-Offensive%20Security-red)
 ![Category](https://img.shields.io/badge/category-CTF%20Writeups-blue)
 
-This repository contains my **Cybersecurity CTF write-ups** from platforms such as **Hack The Box**.
+This repository contains my **Cybersecurity CTF write-ups** from platforms such as **Hack The Box** and **Try Hack Me**.
 
 The goal of this repository is to document the **techniques, methodologies, and tools used during the exploitation process** while practicing offensive security.
 
@@ -30,6 +30,7 @@ This section tracks my progress solving **Hack The Box machines**.
 | Conversor    | Easy       | Linux   | ✅ Completed |  [View](htb/conversor/README.md)  |
 | Facts    | Easy       | Linux   | ✅ Completed |  [View](htb/facts/README.md)  |
 | Kobold    | Easy       | Linux   | ✅ Completed |  [View](htb/kobold/README.md)  |
+| Olympus    | Medium       | Linux   | ✅ Completed |  [View](thm/olympus/README.md)  |
 | Silentium    | Easy       | Linux   | ✅ Completed |  [View](htb/silentium/README.md)  |
 | TwoMillion    | Easy       | Linux   | ✅ Completed |  [View](htb/twomillion/README.md)  |
 | Underpass     | Easy       | Linux   | ✅ Completed   | [View](htb/underpass/README.md) |
@@ -43,11 +44,11 @@ This section tracks my progress solving **Hack The Box machines**.
 | Difficulty | Completed |
 | ---------- | --------- |
 | Easy       | 10         |
-| Medium     | 0         |
+| Medium     | 1         |
 | Hard       | 0         |
 | Insane     | 0         |
 
-Total Machines Completed: **10**
+Total Machines Completed: **11**
 
 # Platforms
 
