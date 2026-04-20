@@ -22,20 +22,19 @@ These write-ups focus on:
 
 This section tracks my progress solving **Hack The Box machines**.
 
-| Machine | Difficulty | OS      | Status        | Write-up                  |
-| ------- | ---------- | ------- | ------------- | ------------------------- |
-| Cap     | Easy       | Linux   | ✅ Completed   | [View](htb/cap/README.md) |
-| CCTV    | Easy       | Linux   | ✅ Completed |  [View](htb/cctv/README.md)  |
-| Chemistry     | Easy       | Linux   | ✅ Completed   | [View](htb/chemistry/README.md) |
-| Conversor    | Easy       | Linux   | ✅ Completed |  [View](htb/conversor/README.md)  |
-| Facts    | Easy       | Linux   | ✅ Completed |  [View](htb/facts/README.md)  |
-| Kobold    | Easy       | Linux   | ✅ Completed |  [View](htb/kobold/README.md)  |
-| Olympus    | Medium       | Linux   | ✅ Completed |  [View](thm/olympus/README.md)  |
-| Silentium    | Easy       | Linux   | ✅ Completed |  [View](htb/silentium/README.md)  |
-| TwoMillion    | Easy       | Linux   | ✅ Completed |  [View](htb/twomillion/README.md)  |
-| Underpass     | Easy       | Linux   | ✅ Completed   | [View](htb/underpass/README.md) |
-| Wingdata     | Easy       | Linux   | ✅ Completed   | [View](htb/wingdata/README.md) |
-
+| Machine   | Difficulty | OS    | Platform        | Status       | Write-up                        |
+| --------- | ---------- | ----- | --------------- | ------------ | ------------------------------- |
+| Cap       | Easy       | Linux | Hack The Box    | ✅ Completed | [View](htb/cap/README.md)       |
+| CCTV      | Easy       | Linux | Hack The Box    | ✅ Completed | [View](htb/cctv/README.md)      |
+| Chemistry | Easy       | Linux | Hack The Box    | ✅ Completed | [View](htb/chemistry/README.md) |
+| Conversor | Easy       | Linux | Hack The Box    | ✅ Completed | [View](htb/conversor/README.md) |
+| Facts     | Easy       | Linux | Hack The Box    | ✅ Completed | [View](htb/facts/README.md)     |
+| Kobold    | Easy       | Linux | Hack The Box    | ✅ Completed | [View](htb/kobold/README.md)    |
+| Olympus   | Medium     | Linux | TryHackMe       | ✅ Completed | [View](thm/olympus/README.md)   |
+| Silentium | Easy       | Linux | Hack The Box    | ✅ Completed | [View](htb/silentium/README.md) |
+| TwoMillion| Easy       | Linux | Hack The Box    | ✅ Completed | [View](htb/twomillion/README.md)|
+| Underpass | Easy       | Linux | Hack The Box    | ✅ Completed | [View](htb/underpass/README.md) |
+| Wingdata  | Easy       | Linux | Hack The Box    | ✅ Completed | [View](htb/wingdata/README.md)  |
 
 ---
 
