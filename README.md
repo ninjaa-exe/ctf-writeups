@@ -31,6 +31,7 @@ This section tracks my progress solving **Hack The Box machines**.
 | Facts     | Easy       | Linux | Hack The Box    | ✅ Completed | [View](htb/facts/README.md)     |
 | Kobold    | Easy       | Linux | Hack The Box    | ✅ Completed | [View](htb/kobold/README.md)    |
 | Olympus   | Medium     | Linux | TryHackMe       | ✅ Completed | [View](thm/olympus/README.md)   |
+| Principal | Medium     | Linux | Hack The Box    | ✅ Completed | [View](htb/principal/README.md) |
 | Silentium | Easy       | Linux | Hack The Box    | ✅ Completed | [View](htb/silentium/README.md) |
 | TwoMillion| Easy       | Linux | Hack The Box    | ✅ Completed | [View](htb/twomillion/README.md)|
 | Underpass | Easy       | Linux | Hack The Box    | ✅ Completed | [View](htb/underpass/README.md) |
@@ -42,12 +43,12 @@ This section tracks my progress solving **Hack The Box machines**.
 
 | Difficulty | Completed |
 | ---------- | --------- |
-| Easy       | 10         |
-| Medium     | 1         |
+| Easy       | 10        |
+| Medium     | 2         |
 | Hard       | 0         |
 | Insane     | 0         |
 
-Total Machines Completed: **11**
+Total Machines Completed: **12**
 
 # Platforms
 
