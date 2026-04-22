@@ -109,7 +109,7 @@ Esse endpoint fornece a **chave pública RSA** usada para criptografar o JWT.
 
 ![CVE](screenshots/cve.png)
 
-De acordo com o PDF:
+Vulnerabilidade:
 
 - O sistema descriptografa o JWE corretamente
 - Mas falha ao validar a assinatura do JWT interno
