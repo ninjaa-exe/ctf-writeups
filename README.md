@@ -29,14 +29,18 @@ This section tracks my progress solving **Hack The Box machines**.
 | CCTV         | Easy       | Linux | Hack The Box    | ✅ Completed | [View](htb/cctv/README.md)        |
 | Chemistry    | Easy       | Linux | Hack The Box    | ✅ Completed | [View](htb/chemistry/README.md)   |
 | Conversor    | Easy       | Linux | Hack The Box    | ✅ Completed | [View](htb/conversor/README.md)   |
+| Devhub       | Medium     | Linux | Hack The Box    | ✅ Completed | [View](htb/devhub/README.md)      |
 | Facts        | Easy       | Linux | Hack The Box    | ✅ Completed | [View](htb/facts/README.md)       |
 | Helix        | Medium     | Linux | Hack The Box    | ✅ Completed | [View](htb/helix/README.md)       |
 | Interpreter  | Medium     | Linux | Hack The Box    | ✅ Completed | [View](htb/interpreter/README.md) |
 | Kobold       | Easy       | Linux | Hack The Box    | ✅ Completed | [View](htb/kobold/README.md)      |
+| Monitorsfour | Easy       | Windows | Hack The Box  | ✅ Completed | [View](htb/monitorsfour/README.md) |
 | Olympus      | Medium     | Linux | TryHackMe       | ✅ Completed | [View](thm/olympus/README.md)     |
 | Principal    | Medium     | Linux | Hack The Box    | ✅ Completed | [View](htb/principal/README.md)   |
+| Reactor      | Medium     | Linux | Hack The Box    | ✅ Completed | [View](htb/reactor/README.md)     |
 | Silentium    | Easy       | Linux | Hack The Box    | ✅ Completed | [View](htb/silentium/README.md)   |
 | Snapped      | Hard       | Linux | Hack The Box    | ✅ Completed | [View](htb/snapped/README.md)     |
+| Support      | Easy       | Windows | Hack The Box  | ✅ Completed | [View](htb/support/README.md)     |
 | TwoMillion   | Easy       | Linux | Hack The Box    | ✅ Completed | [View](htb/twomillion/README.md)  |
 | Underpass    | Easy       | Linux | Hack The Box    | ✅ Completed | [View](htb/underpass/README.md)   |
 | Wingdata     | Easy       | Linux | Hack The Box    | ✅ Completed | [View](htb/wingdata/README.md)    |
@@ -47,12 +51,12 @@ This section tracks my progress solving **Hack The Box machines**.
 
 | Difficulty | Completed |
 | ---------- | --------- |
-| Easy       | 11        |
-| Medium     | 4         |
+| Easy       | 13        |
+| Medium     | 6         |
 | Hard       | 1         |
 | Insane     | 0         |
 
-Total Machines Completed: **16**
+Total Machines Completed: **20**
 
 # Platforms
 
