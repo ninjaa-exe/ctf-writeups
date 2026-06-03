@@ -29,6 +29,7 @@ This section tracks my progress solving **Hack The Box machines**.
 | CCTV         | Easy       | Linux | Hack The Box    | ✅ Completed | [View](htb/cctv/README.md)        |
 | Chemistry    | Easy       | Linux | Hack The Box    | ✅ Completed | [View](htb/chemistry/README.md)   |
 | Conversor    | Easy       | Linux | Hack The Box    | ✅ Completed | [View](htb/conversor/README.md)   |
+| DevArea      | Medium     | Linux | Hack The Box    | ✅ Completed | [View](htb/devarea/README.md)     |
 | Devhub       | Medium     | Linux | Hack The Box    | ✅ Completed | [View](htb/devhub/README.md)      |
 | Facts        | Easy       | Linux | Hack The Box    | ✅ Completed | [View](htb/facts/README.md)       |
 | Helix        | Medium     | Linux | Hack The Box    | ✅ Completed | [View](htb/helix/README.md)       |
@@ -52,11 +53,11 @@ This section tracks my progress solving **Hack The Box machines**.
 | Difficulty | Completed |
 | ---------- | --------- |
 | Easy       | 13        |
-| Medium     | 6         |
+| Medium     | 7         |
 | Hard       | 1         |
 | Insane     | 0         |
 
-Total Machines Completed: **20**
+Total Machines Completed: **21**
 
 # Platforms
 
