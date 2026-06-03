@@ -30,6 +30,7 @@ This section tracks my progress solving **Hack The Box machines**.
 | Chemistry    | Easy       | Linux | Hack The Box    | ✅ Completed | [View](htb/chemistry/README.md)   |
 | Conversor    | Easy       | Linux | Hack The Box    | ✅ Completed | [View](htb/conversor/README.md)   |
 | Facts        | Easy       | Linux | Hack The Box    | ✅ Completed | [View](htb/facts/README.md)       |
+| Helix        | Medium     | Linux | Hack The Box    | ✅ Completed | [View](htb/helix/README.md)       |
 | Interpreter  | Medium     | Linux | Hack The Box    | ✅ Completed | [View](htb/interpreter/README.md) |
 | Kobold       | Easy       | Linux | Hack The Box    | ✅ Completed | [View](htb/kobold/README.md)      |
 | Olympus      | Medium     | Linux | TryHackMe       | ✅ Completed | [View](thm/olympus/README.md)     |
@@ -47,11 +48,11 @@ This section tracks my progress solving **Hack The Box machines**.
 | Difficulty | Completed |
 | ---------- | --------- |
 | Easy       | 11        |
-| Medium     | 3         |
+| Medium     | 4         |
 | Hard       | 1         |
 | Insane     | 0         |
 
-Total Machines Completed: **15**
+Total Machines Completed: **16**
 
 # Platforms
 
