@@ -166,13 +166,13 @@ cat /root/root.txt
 ### User Flag
 
 ```
-318e3379c1865605a000a4c6fa5ad3d4
+318e33.....................
 ```
 
 ### Root Flag
 
 ```
-fa23ecddd243c7ba0f1794f408f61a0b
+fa23ec.....................
 ```
 
 ---

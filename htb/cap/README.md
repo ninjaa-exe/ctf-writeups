@@ -104,7 +104,7 @@ After logging in, the **user flag** was retrieved.
 
 ![User Flag](screenshots/user-flag.png)
 
-```16454aadc23615650b36d19fe560d2cd```
+```16454a.....................```
 
 
 ---
@@ -150,7 +150,7 @@ After gaining root privileges, the root flag was retrieved.
 
 ![Root Flag](screenshots/root-flag.png)
 
-```170f052d3f6be9b50f63a47f8d88421b```
+```170f05.....................```
 
 ---
 
@@ -158,11 +158,11 @@ After gaining root privileges, the root flag was retrieved.
 
 ### User Flag
 
-16454aadc23615650b36d19fe560d2cd
+16454a.....................
 
 ### Root Flag
 
-170f052d3f6be9b50f63a47f8d88421b
+170f05.....................
 
 
 ---

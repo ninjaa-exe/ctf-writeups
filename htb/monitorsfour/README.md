@@ -1,7 +1,7 @@
 # Hack The Box — MonitorsFour
 
 ![HTB](https://img.shields.io/badge/Platform-Hack%20The%20Box-green)
-![Difficulty](https://img.shields.io/badge/Difficulty-Easy-brightgreen)
+![Difficulty](https://img.shields.io/badge/Difficulty-Easy-blue)
 ![OS](https://img.shields.io/badge/OS-Windows%20(Docker%2FWSL2)-blue)
 ![Category](https://img.shields.io/badge/Category-Web%20%7C%20IDOR%20%7C%20Cacti%20RCE%20%7C%20Docker%20Escape-red)
 
@@ -297,7 +297,7 @@ www-data@821fbd6a43fa:~/home/marcus$ cat user.txt
 ![User Flag](screenshots/user-flag.png)
 
 ```
-940f72dfeca5f123ffa4e4e2b42fa0db
+940f72.....................
 ```
 
 ---
@@ -501,7 +501,7 @@ root@4efc88a6fae2:/var/www/html# cat /host/mnt/host/c/Users/Administrator/Deskto
 ![Root Flag](screenshots/root-flag.png)
 
 ```
-dcf0e428e070a241eff5d761d72f190a
+dcf0e4.....................
 ```
 
 A estrutura de paths do Docker Desktop em Windows fica empilhada assim:

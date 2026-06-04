@@ -2,12 +2,12 @@
 
 ![HTB](https://img.shields.io/badge/Platform-Hack%20The%20Box-green)
 ![Difficulty](https://img.shields.io/badge/Difficulty-Medium-yellow)
-![OS](https://img.shields.io/badge/OS-Linux-red)
+![OS](https://img.shields.io/badge/OS-Linux-orange)
 ![Category](https://img.shields.io/badge/Category-Web%20%7C%20Apache%20NiFi%20RCE%20%7C%20OT%20%2F%20OPC--UA%20%7C%20Privilege%20Escalation-blue)
 
 ---
 
-## Informações da Máquina
+# Informações da Máquina
 
 | Nome | Dificuldade | Plataforma | OS |
 | ---- | ----------- | ---------- | -- |
@@ -17,7 +17,7 @@ O alvo se apresenta como a **Helix Industries**, uma empresa fictícia de automa
 
 ---
 
-## Superfície de Ataque
+# Superfície de Ataque
 
 1. Enumeração com Nmap: SSH (22) e nginx (80), com redirecionamento para o vhost `helix.htb`
 2. Descoberta do subdomínio `flow.helix.htb` hospedando um **Apache NiFi 1.21.0**
@@ -32,7 +32,7 @@ O alvo se apresenta como a **Helix Industries**, uma empresa fictícia de automa
 
 ---
 
-## Reconhecimento
+# Reconhecimento
 
 A enumeração inicial com Nmap identificou apenas duas portas abertas.
 
@@ -59,7 +59,7 @@ O servidor web redireciona para `http://helix.htb/`, indicando roteamento por **
 
 ---
 
-## Enumeração Web
+# Enumeração Web
 
 O site principal (`helix.htb`) é institucional — uma landing page da "Helix Industries". O passo decisivo foi o **fuzzing de vhosts**, que revelou um subdomínio adicional:
 
@@ -76,7 +76,7 @@ Acessando `http://flow.helix.htb/`, a aplicação se identifica como **Apache Ni
 
 ---
 
-## Foothold — RCE não autenticado no Apache NiFi
+# Foothold — RCE não autenticado no Apache NiFi
 
 ### Identificação e configuração permissiva
 
@@ -143,7 +143,7 @@ Linux helix 5.15.0-164-generic #174-Ubuntu SMP x86_64 GNU/Linux
 
 ---
 
-## Enumeração como `nifi`
+# Enumeração como `nifi`
 
 Com execução de comando como `nifi`, o mapeamento do host revelou o ambiente OT e, principalmente, o caminho para o próximo usuário.
 
@@ -215,7 +215,7 @@ b3BlbnNzaC1rZXktdjEAAAAABG5vbmUAAAAEbm9uZQAAAAAAAAABAAAAMwAAAAtzc2gtZW
 
 ---
 
-## Acesso Inicial (User)
+# Acesso Inicial (User)
 
 Com a chave privada, o login como `operator` foi direto:
 
@@ -234,12 +234,12 @@ operator@helix:~$
 **Local:** `/home/operator/user.txt`
 
 ```
-8fdff9858306f62e3cc4334eb8988ad6
+8fdff9.....................
 ```
 
 ---
 
-## Escalação de Privilégios via OPC UA e a Janela de Manutenção
+# Escalação de Privilégios via OPC UA e a Janela de Manutenção
 
 Como `operator`, o `sudo -l` revelou o vetor de root:
 
@@ -344,12 +344,12 @@ root@helix:/home/operator# cat /root/root.txt
 **Local:** `/root/root.txt`
 
 ```
-7b77bd53f4376fefd07241bfa4b9db0d
+7b77bd.....................
 ```
 
 ---
 
-## Análise de Vulnerabilidades
+# Análise de Vulnerabilidades
 
 ### 1. Apache NiFi com Acesso Anônimo e `execute-code`
 
@@ -414,7 +414,7 @@ O `helix-maint-console` (sudo NOPASSWD para `operator` → root) baseava sua dec
 
 ---
 
-## Ferramentas Utilizadas
+# Ferramentas Utilizadas
 
 * **Nmap**, port scanning e fingerprinting de serviços
 * **FFUF**, fuzzing de virtual hosts
@@ -426,7 +426,7 @@ O `helix-maint-console` (sudo NOPASSWD para `operator` → root) baseava sua dec
 
 ---
 
-## Cadeia de Exploração
+# Cadeia de Exploração
 
 ```
 [Reconhecimento: Nmap]  ->  SSH(22) + nginx(80) -> vhost helix.htb
@@ -457,7 +457,7 @@ O `helix-maint-console` (sudo NOPASSWD para `operator` → root) baseava sua dec
 
 ---
 
-## Principais Aprendizados
+# Principais Aprendizados
 
 1. **Fuzzing de vhost abre portas escondidas:** o serviço realmente interessante (NiFi) só aparecia sob um subdomínio. A landing page principal era apenas fachada.
 
@@ -473,7 +473,7 @@ O `helix-maint-console` (sudo NOPASSWD para `operator` → root) baseava sua dec
 
 ---
 
-## Timeline de Exploração
+# Timeline de Exploração
 
 | Etapa | Ação | Resultado |
 |-------|------|-----------|
@@ -490,7 +490,7 @@ O `helix-maint-console` (sudo NOPASSWD para `operator` → root) baseava sua dec
 
 ---
 
-## Autor
+# Autor
 
 Exploração e documentação realizadas como parte do currículo de Information Security.
 
@@ -498,7 +498,7 @@ Exploração e documentação realizadas como parte do currículo de Information
 
 ---
 
-## Referências e Recursos
+# Referências e Recursos
 
 - [Apache NiFi — Security Configuration](https://nifi.apache.org/docs/nifi-docs/html/administration-guide.html#security_configuration)
 - [Apache NiFi REST API](https://nifi.apache.org/docs/nifi-docs/rest-api/index.html)

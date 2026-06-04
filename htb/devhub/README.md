@@ -2,12 +2,12 @@
 
 ![HTB](https://img.shields.io/badge/Platform-Hack%20The%20Box-green)
 ![Difficulty](https://img.shields.io/badge/Difficulty-Medium-yellow)
-![OS](https://img.shields.io/badge/OS-Linux-red)
+![OS](https://img.shields.io/badge/OS-Linux-orange)
 ![Category](https://img.shields.io/badge/Category-Web%20%7C%20CVE%20%7C%20Code%20Execution%20%7C%20Privilege%20Escalation-blue)
 
 ---
 
-## Informações da Máquina
+# Informações da Máquina
 
 | Nome | Dificuldade | Plataforma | OS |
 | ---- | ----------- | ---------- | -- |
@@ -15,7 +15,7 @@
 
 ---
 
-## Superfície de Ataque
+# Superfície de Ataque
 
 1. Enumeração inicial com Nmap — descoberta de SSH (22) e HTTP (80)
 2. Enumeração web da plataforma DevHub com três serviços principais
@@ -30,7 +30,7 @@
 
 ---
 
-## Reconhecimento
+# Reconhecimento
 
 A enumeração inicial com Nmap identificou os serviços principais rodando na máquina alvo.
 
@@ -72,7 +72,7 @@ Duas portas abertas: SSH (22) para acesso remoto e HTTP (80) para a aplicação 
 
 ---
 
-## Enumeração Web
+# Enumeração Web
 
 Acessando `http://devhub.htb`, a página exibe a plataforma **DevHub** — *"Internal Development & Analytics Platform"* com três serviços principais:
 
@@ -104,7 +104,7 @@ Acessando `http://devhub.htb`, a página exibe a plataforma **DevHub** — *"Int
 
 ---
 
-## Exploração — MCP Inspector
+# Exploração — MCP Inspector
 
 O **MCP Inspector** foi identificado como o principal vetor de ataque. Acessando `http://devhub.htb:6274`:
 
@@ -182,7 +182,7 @@ uid=1000(analyst) gid=1000(analyst) groups=1000(analyst),4(adm)
 
 ---
 
-## Post-Exploitation — Descoberta de Credenciais SSH
+# Post-Exploitation — Descoberta de Credenciais SSH
 
 Dentro da shell como `analyst`, foi explorado o filesystem em busca de credenciais:
 
@@ -223,7 +223,7 @@ analyst@devhub:/tmp$ cat /tmp/root_key
 
 ---
 
-## Escalação de Privilégios via SSH
+# Escalação de Privilégios via SSH
 
 Com a chave privada de root em mão, foi tentado acesso SSH direto como root:
 
@@ -257,7 +257,7 @@ Linux devhub 5.15.0-179-generic #188-Ubuntu SMP Thu May 30 21:12:39 UTC 2026 x86
 
 ---
 
-## Captura das Flags
+# Captura das Flags
 
 ### User Flag
 
@@ -265,12 +265,10 @@ Linux devhub 5.15.0-179-generic #188-Ubuntu SMP Thu May 30 21:12:39 UTC 2026 x86
 
 ```bash
 analyst@devhub:~$ cat /home/analyst/user.txt
-193356e88cc45aa3275dbec7c162532d
+193356.....................
 ```
 
-![User Flag](screenshots/user_key.png)
 
-**MD5:** `193356e88cc45aa3275dbec7c162532d`
 
 ### Root Flag
 
@@ -278,7 +276,7 @@ analyst@devhub:~$ cat /home/analyst/user.txt
 
 ```bash
 root@devhub:~# cat /root/root.txt
-436d1fdb2f62729c73654d23d0dc857c
+436d1fd.....................
 ```
 
 ![Root Flag](screenshots/root_key.png)
@@ -287,7 +285,7 @@ root@devhub:~# cat /root/root.txt
 
 ---
 
-## Análise de Vulnerabilidades
+# Análise de Vulnerabilidades
 
 ### 1. **MCP Protocol Parsing Vulnerability**
 
@@ -338,7 +336,7 @@ O parser não verificava a origem ou formato das requisições MCP.
 
 ---
 
-## Ferramentas Utilizadas
+# Ferramentas Utilizadas
 
 - **Nmap** — Port scanning e versioning
 - **curl** — Requisições HTTP/API
@@ -349,7 +347,7 @@ O parser não verificava a origem ou formato das requisições MCP.
 
 ---
 
-## Cadeia de Exploração
+# Cadeia de Exploração
 
 ```
 [Reconnaissance]
@@ -373,7 +371,7 @@ O parser não verificava a origem ou formato das requisições MCP.
 
 ---
 
-## Principais Aprendizados
+# Principais Aprendizados
 
 1. **Protocol-Specific Vulnerabilities:** MCPs e protocolos menos conhecidos podem ter parsers com vulnerabilidades críticas. Vale a pena estudar a documentação e procurar por injection points.
 
@@ -389,7 +387,7 @@ O parser não verificava a origem ou formato das requisições MCP.
 
 ---
 
-## Timeline de Exploração
+# Timeline de Exploração
 
 | Etapa | Ação | Resultado |
 |-------|------|-----------|
@@ -404,7 +402,7 @@ O parser não verificava a origem ou formato das requisições MCP.
 
 ---
 
-## Autor
+# Autor
 
 Exploração e documentação realizada como parte do currículo de Information Security.
 
@@ -413,7 +411,7 @@ Exploração e documentação realizada como parte do currículo de Information 
 
 ---
 
-## Referências e Recursos
+# Referências e Recursos
 
 - [MCP Protocol Specification](https://spec.modelcontextprotocol.io/)
 - [OWASP Code Injection](https://owasp.org/www-community/attacks/Code_Injection)

@@ -270,7 +270,7 @@ cat /root/root.txt
 ![Root](screenshots/root-flag.png)
 
 ```
-10249185de33be92fb5d2ed29f74a025
+102491.....................
 ```
 
 ---

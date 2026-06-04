@@ -176,7 +176,7 @@ ssh fismathack@10.129.22.117
 ![User Flag](screenshots/user_flag.png)
 
 ```
-00f53b8888ecdc8814a01c18dd67f289
+00f53b.....................
 ```
 
 ---
@@ -214,7 +214,7 @@ Após exploração, foi possível obter shell como root.
 ![Root Flag](screenshots/root_flag.png)
 
 ```
-36003125b473a0efc65cd596ac974152
+360031.....................
 ```
 
 ---

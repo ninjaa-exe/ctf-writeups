@@ -201,7 +201,7 @@ cat user.txt
 ![User Flag](/screenshots/user-flag.png)
 
 ```
-ee11cbb19052e40b07aac0ca060c23ee
+ee11cb.....................
 ```
 
 ---
@@ -288,7 +288,7 @@ cat root.txt
 ![Root Flag](/screenshots/root-flag.png)
 
 ```
-63a9f0ea7bb98050796b649e85481845
+63a9f0.....................
 ```
 
 ---

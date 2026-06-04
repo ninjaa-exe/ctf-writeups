@@ -1,8 +1,8 @@
 # Hack The Box — Principal
 
 ![HTB](https://img.shields.io/badge/Platform-Hack%20The%20Box-green)
-![Difficulty](https://img.shields.io/badge/Difficulty-Medium-orange)
-![OS](https://img.shields.io/badge/OS-Linux-blue)
+![Difficulty](https://img.shields.io/badge/Difficulty-Medium-yellow)
+![OS](https://img.shields.io/badge/OS-Linux-orange)
 ![Category](https://img.shields.io/badge/Category-Web%20%7C%20Auth%20Bypass%20%7C%20SSH%20CA-red)
 
 ---
@@ -224,7 +224,7 @@ cat user.txt
 ![User](screenshots/user-flag.png)
 
 ```
-819cec726195deff54a85d833fc52347
+819cec.....................
 ```
 
 ---
@@ -315,7 +315,7 @@ cat /root/root.txt
 ![Root](screenshots/root-flag.png)
 
 ```
-a57f6df32b30fd0f3deb90328aa44a91
+a57f6d.....................
 ```
 
 ---

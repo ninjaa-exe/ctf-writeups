@@ -267,7 +267,7 @@ cat user.txt
 ![User flag](screenshots/user-flag.png)
 
 ```
-e6dca8e69b324f1a217f4e796d1ff922 
+e6dca8..................... 
 ```
 
 ---
@@ -429,7 +429,7 @@ cat /root/root.txt
 ![Root flag](screenshots/root-flag.png)
 
 ```
-f08e07e784230fd8108e8ebcf1a9e861
+f08e07.....................
 ```
 
 ---

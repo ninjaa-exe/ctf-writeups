@@ -157,13 +157,13 @@ After exploiting the vulnerability, the root flag was obtained.
 ### User Flag
 
 ```
-584e2c0f8f541ed3cd0668cbac6fb292
+584e2c.....................
 ```
 
 ### Root Flag
 
 ```
-f4cad6dda7ee09c56b082148357d58db
+f4cad6.....................
 ```
 
 ---

@@ -1,7 +1,7 @@
 # Hack The Box — Support
 
 ![HTB](https://img.shields.io/badge/Platform-Hack%20The%20Box-green)
-![Difficulty](https://img.shields.io/badge/Difficulty-Easy-brightgreen)
+![Difficulty](https://img.shields.io/badge/Difficulty-Easy-blue)
 ![OS](https://img.shields.io/badge/OS-Windows-blue)
 ![Category](https://img.shields.io/badge/Category-Active%20Directory%20%7C%20SMB%20%7C%20LDAP%20%7C%20RBCD%20%7C%20Privilege%20Escalation-red)
 
@@ -257,7 +257,7 @@ PS C:\Users\support\Desktop> type user.txt
 ![User Flag](screenshots/user-flag.png)
 
 ```
-b96cb011d9fce6c42f5ae4fa9625e4b9
+b96cb0.....................
 ```
 
 ---
@@ -428,7 +428,7 @@ C:\Users\Administrator\Desktop> type root.txt
 ![Root Flag](screenshots/root-flag.png)
 
 ```
-bb3442b0343a5d2a27d89eee89fddb86
+bb3442.....................
 ```
 
 ---

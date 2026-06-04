@@ -165,7 +165,7 @@ cat /home/ben/user.txt
 ![User Flag](screenshots/user-flag.png)
 
 ```
-0616ed84248bb9acec928a2100dd5593
+0616ed.....................
 ```
 
 ---
@@ -256,7 +256,7 @@ cat /root/root.txt
 ![Root Flag](screenshots/root-flag.png)
 
 ```
-c264bbd33806699869655a280c2e7a75
+c264bb.....................
 ```
 
 ---
