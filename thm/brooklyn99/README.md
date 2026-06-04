@@ -1,86 +1,61 @@
-# TryHackMe — Brooklyn Nine Nine
+## Summary
 
-![THM](https://img.shields.io/badge/Platform-TryHackMe-red)
-![Difficulty](https://img.shields.io/badge/Difficulty-Easy-blue)
-![OS](https://img.shields.io/badge/OS-Linux-orange)
-![Category](https://img.shields.io/badge/Category-FTP%20%7C%20Steganography%20%7C%20Privilege%20Escalation-red)
+Brooklyn Nine Nine is an Easy Linux machine. **Anonymous FTP** exposes a note
+hinting at weak credentials, and a comment in the web application points to
+**steganography**. A password hidden inside the site's background image is
+recovered with `stegseek` and reused to gain SSH access as `holt`. A permissive
+**sudo** rule allowing `nano` to run as root is then abused to escalate to
+**root**.
 
----
+## Machine Information
 
-# Informações da Máquina
+| Name | Difficulty | OS | Platform |
+| --- | --- | --- | --- |
+| Brooklyn Nine Nine | Easy | Linux | TryHackMe |
 
-| Nome | Dificuldade | Plataforma | OS |
-| ---- | ---------- | ---------- | -- |
-| Brooklyn Nine Nine | Easy | TryHackMe | Linux |
+## Attack Path
 
----
+1. Nmap reveals FTP, SSH and HTTP services.
+2. Anonymous FTP login is allowed and exposes `note_to_jake.txt`.
+3. The note hints at weak credentials for several users.
+4. A source-code comment in the web app references steganography.
+5. `stegseek` extracts a hidden file from the background image.
+6. The extracted file contains the password for `holt`.
+7. SSH access is obtained as `holt`.
+8. `sudo -l` shows `nano` can be run as root without a password.
+9. `nano`'s command-execution feature is abused to spawn a root shell.
 
-# Superfície de ataque
+## Reconnaissance
 
-1. Enumeração inicial com Nmap  
-2. Identificação de FTP anônimo  
-3. Coleta de arquivo via FTP  
-4. Enumeração web  
-5. Identificação de pista sobre esteganografia  
-6. Extração de credenciais escondidas em imagem  
-7. Acesso via SSH como holt  
-8. Enumeração de sudo  
-9. Escalação de privilégio via nano  
-10. Obtenção da flag root  
+Initial service enumeration was performed with **Nmap**.
 
----
-
-# Reconhecimento
-
-A enumeração inicial foi realizada com Nmap para identificar portas abertas e serviços disponíveis na máquina alvo.
-
-```
+```bash
 nmap -sC -sV -A -T4 10.64.137.31
 ```
 
-![Nmap](/screenshots/nmap.png)
+| Port | Service |
+| --- | --- |
+| 21 | FTP |
+| 22 | SSH |
+| 80 | HTTP |
 
-O scan revelou os seguintes serviços expostos:
-
-- **21/tcp — FTP**
-- **22/tcp — SSH**
-- **80/tcp — HTTP**
-
-O ponto mais interessante nessa etapa foi o FTP, pois o próprio Nmap identificou que o login anônimo estava habilitado:
+Nmap also flagged that the FTP service allowed anonymous authentication:
 
 ```
 ftp-anon: Anonymous FTP login allowed
 ```
 
-Além disso, foi encontrado um arquivo chamado:
+A file named `note_to_jake.txt` was visible on the FTP share.
 
-```
-note_to_jake.txt
-```
+## FTP Enumeration
 
-Esse tipo de arquivo costuma conter pistas importantes em máquinas CTF, então o próximo passo foi acessá-lo.
+Anonymous FTP allowed the note to be downloaded directly with `wget`.
 
----
-
-# Enumeração FTP
-
-Como o FTP permitia autenticação anônima, foi possível baixar o arquivo diretamente usando `wget`.
-
-```
+```bash
 wget ftp://anonymous:anonymous@10.64.137.31/note_to_jake.txt
 ```
 
-![FTP File](/screenshots/ftp-file.png)
-
-Depois de baixar o arquivo, visualizei seu conteúdo:
-
-```
-cat note_to_jake.txt
-```
-
-![Cat FTP File](/screenshots/cat-ftp-file.png)
-
-O conteúdo era:
+The contents read:
 
 ```
 From Amy,
@@ -88,277 +63,111 @@ From Amy,
 Jake please change your password. It is too weak and holt will be mad if someone hacks into the nine nine
 ```
 
-Essa mensagem revelou três informações importantes:
+This revealed three useful facts: candidate usernames (**amy**, **jake**,
+**holt**), that `jake`'s password is weak, and that `holt` is likely a
+privileged user. Rather than brute-forcing SSH, web enumeration continued.
 
-1. Existem possíveis usuários chamados **amy**, **jake** e **holt**
-2. A senha de **jake** é fraca
-3. O usuário **holt** provavelmente possui algum nível de importância na máquina
+## Web Enumeration
 
-A princípio, isso poderia indicar um caminho por brute force contra o SSH do usuário `jake`. Porém, antes de partir para força bruta, continuei a enumeração web para procurar outras pistas.
+The HTTP service on port 80 was reviewed in the browser. The page source
+contained a revealing comment:
 
----
-
-# Enumeração Web
-
-A porta 80 estava aberta, então acessei a aplicação web no navegador.
-
-Durante a análise do código-fonte da página, encontrei um comentário interessante:
-
-```
+```html
 <!-- Have you ever heard of steganography? -->
 ```
 
-![Source Code](/screenshots/source-code.png)
+The page CSS referenced a background image, `brooklyn99.jpg`, making it the
+obvious target for hidden data.
 
-Esse comentário indicava que provavelmente havia alguma informação escondida dentro de uma imagem da página.
+## Steganography
 
-No CSS da aplicação, foi possível identificar que a imagem utilizada como background era:
+Following the steganography hint, `stegseek` was used against the image with the
+`rockyou.txt` wordlist.
 
-```
-brooklyn99.jpg
-```
-
-A partir disso, o próximo passo foi baixar a imagem e analisar se existia algum conteúdo oculto nela.
-
----
-
-# Esteganografia
-
-Como a própria aplicação deixava uma pista sobre steganography, utilizei o `stegseek` para tentar extrair dados escondidos da imagem usando a wordlist `rockyou.txt`.
-
-```
+```bash
 stegseek brooklyn99.jpg /usr/share/wordlists/rockyou.txt
 ```
 
-![Stegseek](/screenshots/stegseek.png)
-
-O `stegseek` encontrou a passphrase:
-
-```
-admin
-```
-
-E extraiu um arquivo chamado:
-
-```
-brooklyn99.jpg.out
-```
-
-Ao visualizar o conteúdo do arquivo extraído:
-
-```
-cat brooklyn99.jpg.out
-```
-
-![Cat Stegseek](/screenshots/cat-stegseek.png)
-
-Foi encontrada a senha do usuário `holt`:
+`stegseek` recovered the passphrase `admin` and extracted `brooklyn99.jpg.out`,
+which contained the password for `holt`:
 
 ```
 Holt Password:
 fluffydog12@ninenine
-
-Enjoy!!
 ```
 
-Nesse ponto, a exploração mudou de direção. Em vez de tentar força bruta no usuário `jake`, foi possível usar uma credencial válida encontrada via esteganografia.
+## Initial Access (User)
 
----
+The recovered credentials authenticated over SSH as `holt`.
 
-# Acesso Inicial
-
-Com a senha encontrada, tentei autenticar via SSH como o usuário `holt`.
-
-```
+```bash
 ssh holt@10.64.137.31
 ```
 
-![SSH](/screenshots/ssh.png)
+This provided the initial foothold. The user flag lives at
+`/home/holt/user.txt`.
 
-A autenticação foi bem-sucedida, resultando em uma shell no sistema como:
+## Privilege Escalation
 
-```
-holt
-```
+### Enumeration
 
-Esse acesso inicial foi obtido explorando uma cadeia simples:
+`sudo -l` showed that `holt` could run `nano` as any user without a password.
 
-1. Enumeração web
-2. Comentário indicando esteganografia
-3. Extração de credencial da imagem
-4. Login via SSH
-
----
-
-# Flag de Usuário
-
-Após acessar a máquina como `holt`, foi possível ler a flag de usuário.
-
-```
-cat user.txt
-```
-
-![User Flag](/screenshots/user-flag.png)
-
-```
-ee11cb.....................
-```
-
----
-
-# Enumeração Local
-
-Com acesso ao sistema, o próximo passo foi verificar permissões sudo do usuário atual.
-
-```
+```bash
 sudo -l
 ```
-
-![Sudo Nano](/screenshots/sudo-nano.png)
-
-O resultado mostrou que o usuário `holt` podia executar o `nano` como qualquer usuário, sem senha:
 
 ```
 User holt may run the following commands on brooklyn_nine_nine:
     (ALL) NOPASSWD: /bin/nano
 ```
 
-Essa permissão é crítica, pois editores de texto como `nano`, `vim` e outros podem permitir execução de comandos dentro do próprio programa.
+### Abusing sudo nano
 
----
+Editors such as `nano` can spawn commands from within their interface. Running
+the editor as root and using its command-execution feature yields a root shell.
 
-# Escalação de Privilégio
-
-Como o usuário podia executar o `nano` como root, foi possível abusar dessa permissão para executar comandos privilegiados.
-
-Primeiro, executei o `nano` com sudo:
-
-```
+```bash
 sudo /bin/nano
 ```
 
-Dentro do `nano`, é possível usar a função de execução de comandos.
-
-O payload utilizado foi:
+Inside `nano`, the following command was executed via the spawn function:
 
 ```
 reset; sh 1>&0 2>&0
 ```
 
-![Root Shell](/screenshots/root-shell.png)
+This spawned a shell as root (`uid=0(root)`). The root flag lives at
+`/root/root.txt`.
 
-Após executar o comando, foi obtida uma shell como root.
+## Vulnerability Analysis
 
-Para confirmar:
+**Anonymous FTP** — the FTP service permitted anonymous login, exposing
+`note_to_jake.txt` and leaking usernames and password hints. Fix: disable
+anonymous access and restrict FTP to authenticated users.
 
-```
-id
-```
+**Sensitive data hidden in an image** — the web application leaked a
+steganography hint, and the background image embedded the password for `holt`.
+Fix: never store credentials in static assets, and treat all public files as
+disclosed.
 
-Resultado:
+**Insecure sudo configuration** — `holt` could run `/bin/nano` as root without a
+password, and `nano`'s command-execution feature allowed escaping to a root
+shell. Fix: avoid granting sudo on interpreters/editors; restrict sudo to
+specific, non-interactive commands.
 
-```text
-uid=0(root) gid=0(root) groups=0(root)
-```
-
-A lógica por trás dessa exploração é simples: embora o sudo permita apenas executar `/bin/nano`, o próprio `nano` possui funcionalidades internas que podem chamar comandos do sistema. Como o programa estava sendo executado com privilégios de root, qualquer comando iniciado a partir dele também herdava esses privilégios.
-
----
-
-# Root Shell
-
-Com a shell elevada, o usuário atual passou a ser:
-
-```
-root
-```
-
-Isso confirmou o comprometimento total da máquina.
-
----
-
-# Flag Root
-
-Com privilégios de root, foi possível acessar o arquivo `root.txt`.
-
-```
-cat root.txt
-```
-
-![Root Flag](/screenshots/root-flag.png)
-
-```
-63a9f0.....................
-```
-
----
-
-# Vulnerabilidades Identificadas
-
-### FTP anônimo habilitado
-
-O serviço FTP permitia login anônimo, possibilitando acesso ao arquivo `note_to_jake.txt`.
-
-Esse arquivo não dava acesso direto à máquina, mas fornecia informações úteis sobre possíveis usuários e senhas fracas.
-
----
-
-### Informação sensível escondida em imagem
-
-A aplicação web continha uma pista no código-fonte sobre esteganografia.
-
-A imagem `brooklyn99.jpg` possuía um arquivo oculto contendo a senha do usuário `holt`.
-
----
-
-### Credenciais fracas/expostas
-
-A senha do usuário `holt` foi encontrada dentro da imagem:
-
-```
-fluffydog12@ninenine
-```
-
-Com essa credencial, foi possível acessar a máquina via SSH.
-
----
-
-### Configuração sudo insegura
-
-O usuário `holt` podia executar o `nano` como root sem senha:
-
-```
-(ALL) NOPASSWD: /bin/nano
-```
-
-Essa configuração permitiu escalar privilégios para root através da execução de comandos dentro do próprio editor.
-
----
-
-# Ferramentas Utilizadas
+## Tools Used
 
 - Nmap
-- FTP
 - wget
 - Stegseek
-- rockyou.txt
+- John / rockyou.txt
 - SSH
-- sudo
-- nano
 
----
+## Key Takeaways
 
-# Principais Aprendizados
-
-- Sempre verificar se FTP anônimo está habilitado
-- Arquivos encontrados em serviços expostos podem conter pistas importantes
-- Comentários em código-fonte podem revelar o caminho da exploração
-- Esteganografia pode ser usada para esconder credenciais em imagens
-- Permissões sudo aparentemente simples podem permitir escalação total
-- Editores de texto executados com sudo devem ser tratados como risco crítico
-
----
-
-# Autor
-
-https://github.com/ninjaa-exe
+- Always check whether anonymous FTP is enabled.
+- Files left on exposed services often contain useful hints.
+- Source-code comments can reveal the intended exploitation path.
+- Steganography is a common way to hide credentials in images.
+- Sudo access to editors like `nano` is a critical privilege-escalation vector.

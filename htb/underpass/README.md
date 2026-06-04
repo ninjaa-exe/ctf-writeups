@@ -1,235 +1,142 @@
-# Hack The Box — UnderPass
+## Summary
 
-![HTB](https://img.shields.io/badge/Platform-Hack%20The%20Box-green)
-![Difficulty](https://img.shields.io/badge/Difficulty-Easy-blue)
-![OS](https://img.shields.io/badge/OS-Linux-orange)
-![Category](https://img.shields.io/badge/Category-SNMP%20Enumeration%20%7C%20Default%20Credentials%20%7C%20Privilege%20Escalation-red)
+UnderPass is an Easy Linux machine where the web server only serves a default
+Apache page. UDP enumeration reveals **SNMP**, which leaks references to a
+**daloRADIUS** deployment. The panel is accessible with default credentials,
+exposing a user hash that is cracked for SSH access as `svcMosh`. A sudo rule
+allowing `mosh-server` is then abused to obtain a **root** shell.
 
----
+## Machine Information
 
-# Machine Information
+| Name | Difficulty | OS | Platform |
+| --- | --- | --- | --- |
+| UnderPass | Easy | Linux | Hack The Box |
 
-| Name      | Difficulty | Platform     | OS    |
-| --------- | ---------- | ------------ | ----- |
-| UnderPass | Easy       | Hack The Box | Linux |
+## Attack Path
 
----
+1. Nmap reveals SSH and HTTP services.
+2. The web server only shows the default Apache page.
+3. UDP enumeration discovers an SNMP service.
+4. SNMP leaks information about daloRADIUS.
+5. The daloRADIUS panel is accessed with default credentials.
+6. A password hash is extracted and cracked.
+7. SSH access is obtained as `svcMosh`.
+8. A sudo rule allows running `mosh-server`.
+9. The Mosh session is abused to obtain a root shell.
 
-# Attack Path
-
-```
-1. Nmap scan reveals SSH and HTTP services
-2. Web server shows default Apache page
-3. UDP enumeration discovers SNMP service
-4. SNMP leaks information about daloRADIUS
-5. Access to daloRADIUS panel with default credentials
-6. Password hash extracted and cracked
-7. SSH login as svcMosh
-8. sudo privilege allows execution of mosh-server
-9. Mosh session abused to obtain root shell
-```
-
----
-
-# Reconnaissance
+## Reconnaissance
 
 Initial enumeration was performed with **Nmap**.
 
-```
+```bash
 nmap -sC -sV -A 10.10.11.48
 ```
 
-![Nmap Scan](screenshots/nmap.png)
+| Port | Service |
+| --- | --- |
+| 22 | SSH |
+| 80 | HTTP (Apache) |
 
-The scan revealed two open ports:
+## Web Enumeration
 
-| Port | Service       |
-| ---- | ------------- |
-| 22   | SSH           |
-| 80   | HTTP (Apache) |
+The web server only returned the **default Apache page**, so enumeration moved
+to other protocols.
 
----
+## SNMP Enumeration
 
-# Web Enumeration
+A UDP scan revealed that **SNMP** was running, and `snmpwalk` returned useful
+information, including references to **daloRADIUS**.
 
-Accessing the web server revealed only the **default Apache page**.
-
-Since nothing useful was found on the web server, further enumeration was required.
-
----
-
-# SNMP Enumeration
-
-A UDP scan revealed that **SNMP** was running on the server.
-
-```
+```bash
 snmpwalk -v2c -c public 10.10.11.48
 ```
 
-The output contained useful information, including references to **daloRADIUS**.
+This indicated that a RADIUS management interface might be reachable on the web
+server.
 
-This indicated that a **RADIUS management interface** might be accessible on the web server. ([Medium][1])
+## Accessing daloRADIUS
 
----
-
-# Accessing daloRADIUS
-
-After identifying the service, the following path was discovered:
+The operator login was located at:
 
 ```
 /daloradius/app/operators/login.php
 ```
 
-The application allowed login with **default credentials**:
+The panel accepted **default credentials**:
 
 ```
 administrator : radius
 ```
 
----
+## Credential Discovery
 
-# Credential Discovery
-
-Inside the dashboard, a user account and password hash were discovered.
-
-![Password Hash](screenshots/password-hash.png)
-
-The hash was cracked, revealing credentials for the system user:
-
-![Password Crack](screenshots/password-crack.png)
+Inside the dashboard, a user account and password hash were found. The hash was
+cracked, revealing system credentials:
 
 ```
-User: svcMosh
-Password: underwaterfriends
+svcMosh : underwaterfriends
 ```
 
----
+## Initial Access (User)
 
-# Initial Access
+The recovered credentials were reused to authenticate over SSH as `svcMosh`.
 
-Using the discovered credentials, SSH access was obtained.
-
-```
+```bash
 ssh svcMosh@10.10.11.48
 ```
 
-The **user flag** was located in the home directory.
+This provided the initial foothold on the system. The user flag lives at
+`/home/svcMosh/user.txt`.
 
-```
-cat user.txt
-```
+## Privilege Escalation
 
-![User Flag](screenshots/user-flag.png)
+### Enumeration
 
----
-
-# Privilege Escalation
-
-Running `sudo -l` revealed that the user could execute the following command:
+`sudo -l` showed the user could run `mosh-server` as root without a password.
 
 ```
 (ALL) NOPASSWD: /usr/bin/mosh-server
 ```
 
-![sudo permissions](screenshots/sudo-mosh.png)
+### Abusing mosh-server
 
-The `mosh-server` binary could be abused to spawn a root shell.
+Starting the server with sudo produced a MOSH key and port. Connecting to that
+session yielded an interactive shell running as **root**.
 
----
-
-# Exploiting Mosh
-
-The server was started using sudo:
-
-```
+```bash
 sudo /usr/bin/mosh-server new
 ```
 
-This produced a **MOSH key and port**, which allowed connecting to the session and obtaining a root shell. ([Threatninja.net][2])
+The root flag lives at `/root/root.txt`.
 
----
+## Vulnerability Analysis
 
-# Root Access
+**SNMP information disclosure** — public SNMP access (community string `public`)
+exposed internal configuration details and revealed the daloRADIUS deployment.
+Fix: disable SNMP if unused, restrict it to trusted hosts, and replace default
+community strings with SNMPv3 authentication.
 
-After connecting to the Mosh session, root privileges were obtained.
+**Default credentials** — the daloRADIUS panel accepted the shipped
+`administrator:radius` login, granting access to configuration and credentials.
+Fix: change default credentials on deployment and restrict access to management
+panels.
 
-```
-cat /root/root.txt
-```
+**Privilege escalation via `mosh-server` (sudo)** — `svcMosh` could run
+`mosh-server` as root via sudo, which was abused for a root shell. Fix: remove
+unnecessary NOPASSWD sudo rules and avoid granting sudo on binaries that spawn
+interactive sessions.
 
-![Root Flag](screenshots/root-flag.png)
+## Tools Used
 
----
+- Nmap
+- snmpwalk
+- SSH
+- Hash cracking tools
+- Mosh
 
-# Flags
+## Key Takeaways
 
-### User Flag
-
-```
-318e33.....................
-```
-
-### Root Flag
-
-```
-fa23ec.....................
-```
-
----
-
-# Vulnerabilities Identified
-
-### SNMP Information Disclosure
-
-Public SNMP access allowed attackers to retrieve sensitive information about the system configuration.
-
-Impact:
-
-* disclosure of internal service details
-* discovery of daloRADIUS deployment
-
----
-
-### Default Credentials
-
-The daloRADIUS management panel allowed login with default credentials.
-
-Impact:
-
-* unauthorized access to system configuration
-* credential disclosure
-
----
-
-### Privilege Escalation — mosh-server
-
-The user `svcMosh` was allowed to execute `mosh-server` with sudo.
-
-This allowed attackers to spawn a **root shell**.
-
----
-
-# Tools Used
-
-* Nmap
-* SNMPWalk
-* SSH
-* Hash cracking tools
-* Mosh
-
----
-
-# Key Takeaways
-
-This machine demonstrates several important penetration testing concepts:
-
-* UDP enumeration can reveal hidden services
-* SNMP often leaks sensitive system information
-* Default credentials remain a common security issue
-* Misconfigured sudo permissions can lead to privilege escalation
-
----
-
-# Author
-
-GitHub: https://github.com/ninjaa-exe
+- UDP enumeration can reveal services missed by a TCP-only scan.
+- SNMP frequently leaks sensitive system information.
+- Default credentials remain a common, high-impact issue.
+- Misconfigured sudo rules are a reliable privilege escalation vector.

