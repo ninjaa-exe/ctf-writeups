@@ -3,7 +3,7 @@
 ![Platform](https://img.shields.io/badge/Hack%20The%20Box-9FEF00?logo=hackthebox&logoColor=000)
 ![Platform](https://img.shields.io/badge/TryHackMe-212C42?logo=tryhackme&logoColor=fff)
 ![Focus](https://img.shields.io/badge/Focus-Offensive%20Security-red)
-![Machines](https://img.shields.io/badge/Machines-15-blue)
+![Machines](https://img.shields.io/badge/Machines-14-blue)
 
 Penetration-testing write-ups for **Hack The Box** and **TryHackMe** machines.
 Each write-up documents the full kill chain — enumeration, vulnerability
@@ -34,7 +34,6 @@ Every machine follows the same template:
 | Interpreter | Medium | Linux | [View](htb/interpreter/README.md) |
 | MonitorsFour | Easy | Windows | [View](htb/monitorsfour/README.md) |
 | Principal | Medium | Linux | [View](htb/principal/README.md) |
-| Reactor | Medium | Linux | [View](htb/reactor/README.md) |
 | Snapped | Hard | Linux | [View](htb/snapped/README.md) |
 | Support | Easy | Windows | [View](htb/support/README.md) |
 | TwoMillion | Easy | Linux | [View](htb/twomillion/README.md) |
@@ -53,10 +52,10 @@ Every machine follows the same template:
 | Difficulty | Completed |
 | --- | --- |
 | Easy | 10 |
-| Medium | 4 |
+| Medium | 3 |
 | Hard | 1 |
 | Insane | 0 |
-| **Total** | **15** |
+| **Total** | **14** |
 
 ## Topics Covered
 
