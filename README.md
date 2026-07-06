@@ -3,7 +3,7 @@
 ![Platform](https://img.shields.io/badge/Hack%20The%20Box-9FEF00?logo=hackthebox&logoColor=000)
 ![Platform](https://img.shields.io/badge/TryHackMe-212C42?logo=tryhackme&logoColor=fff)
 ![Focus](https://img.shields.io/badge/Focus-Offensive%20Security-red)
-![Machines](https://img.shields.io/badge/Machines-17-blue)
+![Machines](https://img.shields.io/badge/Machines-19-blue)
 
 Penetration-testing write-ups for **Hack The Box** and **TryHackMe** machines.
 Each write-up documents the full kill chain — enumeration, vulnerability
@@ -27,10 +27,12 @@ Every machine follows the same template:
 
 | Machine | Difficulty | OS | Write-up |
 | --- | --- | --- | --- |
+| Abducted | Medium | Linux | [View](htb/abducted/README.md) |
 | Cap | Easy | Linux | [View](htb/cap/README.md) |
 | Chemistry | Easy | Linux | [View](htb/chemistry/README.md) |
 | Conversor | Easy | Linux | [View](htb/conversor/README.md) |
 | Facts | Easy | Linux | [View](htb/facts/README.md) |
+| Fireflow | Medium | Linux | [View](htb/fireflow/README.md) |
 | Interpreter | Medium | Linux | [View](htb/interpreter/README.md) |
 | MonitorsFour | Easy | Windows | [View](htb/monitorsfour/README.md) |
 | Nexus | Easy | Linux | [View](htb/nexus/README.md) |
