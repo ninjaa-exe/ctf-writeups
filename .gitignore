@@ -1,11 +1,7 @@
 # HTB writeups withheld until release allowed (do not leak active machines)
-/htb/cctv/
 /htb/checkpoint/
 /htb/connected/
-/htb/devarea/
 /htb/devhub/
-/htb/helix/
-/htb/kobold/
 /htb/nimbus/
 /htb/reactor/
 /htb/silentium/
@@ -13,3 +9,4 @@
 /htb/makesense/
 /htb/smarthire/
 /htb/logging/
+/htb/scaffold/
